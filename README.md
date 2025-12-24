@@ -1,6 +1,8 @@
 # Puzzle Game Online for Home Assistant
 
-A voice-controlled word puzzle game integration for Home Assistant that connects to an online API for daily puzzles, leaderboards, and statistics tracking.
+[![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5.svg?style=for-the-badge&logo=homeassistant&logoColor=white)](https://my.home-assistant.io/redirect/hacs_repository/?owner=mhos&repository=puzzle-game-online-ha&category=integration)
+
+A voice-controlled word puzzle game integration for Home Assistant that connects to an online API for daily puzzles, leaderboards, and statistics tracking. Compete with players worldwide!
 
 ## Features
 
@@ -14,28 +16,52 @@ A voice-controlled word puzzle game integration for Home Assistant that connects
 
 ## Installation
 
-### HACS (Recommended)
+### Step 1: Install via HACS
 
-1. Open HACS in your Home Assistant instance
-2. Click the three dots in the top right corner
-3. Select "Custom repositories"
-4. Add `https://github.com/mhos/puzzle-game-online-ha` with category "Integration"
-5. Click "Install"
-6. Restart Home Assistant
+<a href="https://my.home-assistant.io/redirect/hacs_repository/?owner=mhos&repository=puzzle-game-online-ha&category=integration" target="_blank"><img src="https://my.home-assistant.io/badges/hacs_repository.svg" alt="Open your Home Assistant instance and open a repository inside the Home Assistant Community Store." /></a>
 
-### Manual Installation
+Click the button above, or manually:
+
+1. Open HACS in Home Assistant
+2. Click the three dots menu > **Custom repositories**
+3. Add: `https://github.com/mhos/puzzle-game-online-ha`
+4. Category: **Integration**
+5. Click **Add**
+6. Find "Puzzle Game Online" and click **Download**
+7. Restart Home Assistant
+
+### Step 2: Add the Integration
+
+1. Go to **Settings > Devices & Services**
+2. Click **Add Integration**
+3. Search for "Puzzle Game Online"
+4. Enter your display name (this will appear on leaderboards)
+5. The integration will automatically register your device with the game server
+
+> **Note:** A "Puzzle Game" entry will automatically appear in your sidebar!
+
+### Step 3: Import the Blueprint
+
+<a href="https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fmhos%2Fpuzzle-game-online-ha%2Fblob%2Fmain%2Fhomeassistant%2Fblueprints%2Fautomation%2Fpuzzle_game_online_controller.yaml" target="_blank"><img src="https://my.home-assistant.io/badges/blueprint_import.svg" alt="Open your Home Assistant instance and show the blueprint import dialog with a specific blueprint pre-filled." /></a>
+
+Click the button above, or manually:
+
+1. Go to **Settings > Automations & Scenes > Blueprints**
+2. Click **Import Blueprint**
+3. Paste: `https://github.com/mhos/puzzle-game-online-ha/blob/main/homeassistant/blueprints/automation/puzzle_game_online_controller.yaml`
+4. Click **Preview** then **Import**
+5. Click **Create Automation** from the blueprint (no configuration needed!)
+
+**That's it! You're ready to play!**
+
+---
+
+### Manual Installation (Without HACS)
 
 1. Download the latest release
 2. Copy `custom_components/puzzle_game_online` to your `config/custom_components/` directory
 3. Restart Home Assistant
-
-## Configuration
-
-1. Go to Settings > Devices & Services
-2. Click "Add Integration"
-3. Search for "Puzzle Game Online"
-4. Enter your display name (this will appear on leaderboards)
-5. The integration will automatically register your device with the game server
+4. Follow Steps 2 and 3 above
 
 ## Voice Commands
 
@@ -61,15 +87,6 @@ When in spelling mode:
 - Say letters one at a time (e.g., "A", "P", "P", "L", "E")
 - "Done" or "Submit" - Submit your spelled word
 - "Cancel" - Exit spelling mode
-
-## Blueprint Installation
-
-To enable voice control, import the blueprint:
-
-1. Go to Settings > Automations & Scenes > Blueprints
-2. Click "Import Blueprint"
-3. Enter: `https://github.com/mhos/puzzle-game-online-ha/blob/main/homeassistant/blueprints/automation/puzzle_game_online_controller.yaml`
-4. Create an automation from the blueprint
 
 ## Services
 
