@@ -18,6 +18,7 @@ class PuzzleGameOnlinePanel extends HTMLElement {
         this._pollInterval = null;
         this._lastMessage = null;
         this._feedbackTimeout = null;
+        this._helpVisible = false;
     }
 
     set hass(hass) {
@@ -128,8 +129,8 @@ class PuzzleGameOnlinePanel extends HTMLElement {
     }
 
     _toggleHelp() {
-        const modal = this.shadowRoot.getElementById('helpModal');
-        if (modal) modal.classList.toggle('show');
+        this._helpVisible = !this._helpVisible;
+        this.render();
     }
 
     render() {
@@ -584,7 +585,7 @@ class PuzzleGameOnlinePanel extends HTMLElement {
 
             <div class="help-button" id="helpBtn">?</div>
 
-            <div class="help-modal" id="helpModal">
+            <div class="help-modal ${this._helpVisible ? 'show' : ''}" id="helpModal">
                 <div class="help-content">
                     <div class="help-header">
                         <div class="help-title">🎤 Voice Commands</div>
