@@ -745,7 +745,8 @@ class PuzzleGameOnlinePanel extends HTMLElement {
 
         // Progress dots
         let progressHtml = '';
-        const solvedIndices = state.solved_word_indices || [];
+        // Convert indices to numbers to handle potential string serialization from HA
+        const solvedIndices = (state.solved_word_indices || []).map(Number);
         for (let i = 1; i <= 6; i++) {
             const wordIndex = i - 1;
             let dotClass = 'progress-dot';
