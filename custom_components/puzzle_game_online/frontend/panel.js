@@ -309,6 +309,38 @@ class PuzzleGameOnlinePanel extends HTMLElement {
                     cursor: not-allowed;
                 }
 
+                .answer-input-container {
+                    display: flex;
+                    gap: 10px;
+                    margin-bottom: 20px;
+                    justify-content: center;
+                }
+
+                .answer-input {
+                    flex: 1;
+                    max-width: 300px;
+                    padding: 15px 20px;
+                    font-size: 1.2rem;
+                    border: 2px solid rgba(255,255,255,0.2);
+                    border-radius: 12px;
+                    background: rgba(0,0,0,0.3);
+                    color: white;
+                    text-align: center;
+                    text-transform: uppercase;
+                    letter-spacing: 2px;
+                }
+
+                .answer-input:focus {
+                    outline: none;
+                    border-color: #e94560;
+                }
+
+                .answer-input::placeholder {
+                    color: rgba(255,255,255,0.4);
+                    text-transform: none;
+                    letter-spacing: normal;
+                }
+
                 /* Leaderboard */
                 .period-tabs {
                     display: flex;
@@ -415,6 +447,8 @@ class PuzzleGameOnlinePanel extends HTMLElement {
                 const action = btn.dataset.action;
                 if (action === 'start') {
                     this._callService('start_game');
+                } else if (action === 'start_bonus') {
+                    this._callService('start_game', { bonus: true });
                 } else if (action === 'reveal') {
                     this._callService('reveal_letter');
                 } else if (action === 'skip') {
@@ -424,6 +458,30 @@ class PuzzleGameOnlinePanel extends HTMLElement {
                 }
             });
         });
+
+        // Answer input handling
+        const answerInput = this.shadowRoot.getElementById('answerInput');
+        const submitBtn = this.shadowRoot.getElementById('submitBtn');
+
+        if (answerInput && submitBtn) {
+            submitBtn.addEventListener('click', () => {
+                const answer = answerInput.value.trim();
+                if (answer) {
+                    this._callService('submit_answer', { answer: answer });
+                    answerInput.value = '';
+                }
+            });
+
+            answerInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    const answer = answerInput.value.trim();
+                    if (answer) {
+                        this._callService('submit_answer', { answer: answer });
+                        answerInput.value = '';
+                    }
+                }
+            });
+        }
     }
 
     _renderGame(state) {
@@ -435,7 +493,10 @@ class PuzzleGameOnlinePanel extends HTMLElement {
                         Solve 5 words connected by a theme.<br>
                         Earn points and compete on the leaderboard!
                     </p>
-                    <button class="btn btn-primary" data-action="start">Start Today's Puzzle</button>
+                    <div class="actions">
+                        <button class="btn btn-primary" data-action="start">Start Today's Puzzle</button>
+                        <button class="btn btn-secondary" data-action="start_bonus">Play Bonus Game</button>
+                    </div>
                 </div>
             `;
         }
@@ -464,6 +525,13 @@ class PuzzleGameOnlinePanel extends HTMLElement {
                 <div class="blanks">${state.blanks || '_ _ _ _ _'}</div>
 
                 <div class="clue">${state.clue || 'Loading...'}</div>
+
+                <div class="answer-input-container">
+                    <input type="text" class="answer-input" id="answerInput"
+                           placeholder="Type your answer..."
+                           autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+                    <button class="btn btn-primary" id="submitBtn">Submit</button>
+                </div>
 
                 ${state.last_message ? `
                     <div class="message ${this._getMessageClass(state.last_message)}">
