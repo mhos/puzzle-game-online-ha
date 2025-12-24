@@ -1,0 +1,100 @@
+start_game:
+  name: Start Game
+  description: Start a new puzzle game
+  fields:
+    bonus:
+      name: Bonus Game
+      description: Start a bonus game instead of the daily puzzle
+      required: false
+      default: false
+      selector:
+        boolean:
+
+submit_answer:
+  name: Submit Answer
+  description: Submit an answer for the current word or theme
+  fields:
+    answer:
+      name: Answer
+      description: The answer to submit
+      required: true
+      selector:
+        text:
+
+reveal_letter:
+  name: Reveal Letter
+  description: Reveal a random letter in the current word
+
+skip_word:
+  name: Skip Word
+  description: Skip the current word and move to the next one
+
+repeat_clue:
+  name: Repeat Clue
+  description: Repeat the current clue
+
+start_spelling:
+  name: Start Spelling
+  description: Enter spelling mode to spell out an answer letter by letter
+
+add_letter:
+  name: Add Letter
+  description: Add a letter while in spelling mode
+  fields:
+    letter:
+      name: Letter
+      description: The letter to add
+      required: true
+      selector:
+        text:
+
+finish_spelling:
+  name: Finish Spelling
+  description: Finish spelling and submit the spelled word
+  fields:
+    text:
+      name: Text
+      description: Optional text containing letters (parsed for letters)
+      required: false
+      selector:
+        text:
+
+cancel_spelling:
+  name: Cancel Spelling
+  description: Cancel spelling mode without submitting
+
+give_up:
+  name: Give Up
+  description: Give up the current game and reveal all answers
+
+set_session:
+  name: Set Session
+  description: Set the voice session state
+  fields:
+    active:
+      name: Active
+      description: Whether the session is active
+      required: true
+      selector:
+        boolean:
+    satellite:
+      name: Satellite
+      description: Entity ID of the active satellite
+      required: false
+      selector:
+        entity:
+          domain: assist_satellite
+    view_assist_device:
+      name: View Assist Device
+      description: Entity ID of the View Assist display device
+      required: false
+      selector:
+        entity:
+
+listening_timeout:
+  name: Listening Timeout
+  description: Handle a timeout when waiting for user input
+
+reset_timeout:
+  name: Reset Timeout
+  description: Reset the timeout counter

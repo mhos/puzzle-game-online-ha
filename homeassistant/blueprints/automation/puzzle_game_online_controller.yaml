@@ -1,0 +1,564 @@
+blueprint:
+  name: Puzzle Game Online Controller
+  description: >-
+    Voice-controlled online word puzzle game that works with any assist satellite.
+    Automatically detects if the device has a View Assist display - if yes, shows the game panel;
+    if no, plays voice-only. Say 'Start puzzle game', 'Play bonus game', or 'Continue puzzle game'.
+    During gameplay, speak naturally - just say your answers, or say 'reveal', 'skip', 'repeat',
+    'spell', 'pause', or 'give up'. Connects to the online puzzle API for daily puzzles and leaderboards.
+  domain: automation
+  author: mhos
+  source_url: https://github.com/mhos/puzzle-game-online-ha/blob/main/homeassistant/blueprints/automation/puzzle_game_online_controller.yaml
+  input: {}
+
+mode: queued
+max: 5
+
+trigger:
+  # Game start commands
+  - platform: conversation
+    command:
+      - "start puzzle game"
+      - "[start] [a] [new] puzzle [game]"
+    id: start
+  - platform: conversation
+    command:
+      - "play bonus game"
+      - "[start] [a] bonus [puzzle] [game]"
+      - "bonus round"
+    id: bonus
+  - platform: conversation
+    command:
+      - "continue puzzle game"
+      - "resume puzzle game"
+      - "continue [the] [puzzle] game"
+    id: "continue"
+
+  # Custom event fired by coordinator when STT sensor changes during active session
+  - platform: event
+    event_type: puzzle_game_online_speech
+    id: stt_changed
+
+  # Listening timeout - fires when satellite is idle for 5+ seconds while session is active
+  - platform: template
+    value_template: >-
+      {% set sat = state_attr('sensor.puzzle_game_online', 'active_satellite') %}
+      {% set session = state_attr('sensor.puzzle_game_online', 'session_active') %}
+      {% set game_active = state_attr('sensor.puzzle_game_online', 'is_active') %}
+      {{ sat not in ['', None, 'unknown'] and session == true and game_active == true and is_state(sat, 'idle') }}
+    for:
+      seconds: 5
+    id: listening_timeout
+
+variables:
+  # Auto-detect satellite from the triggering device
+  satellite_entity: >-
+    {% if trigger.platform == 'conversation' and trigger.device_id is defined %}
+      {{ device_entities(trigger.device_id) | select('match', 'assist_satellite\\..*') | list | first | default('') }}
+    {% else %}
+      {{ state_attr('sensor.puzzle_game_online', 'active_satellite') | default('') }}
+    {% endif %}
+  # Auto-detect View Assist device (display)
+  view_assist_device: >-
+    {% if trigger.platform == 'conversation' and trigger.device_id is defined %}
+      {{ view_assist_entity(trigger.device_id) | default('') }}
+    {% else %}
+      {{ state_attr('sensor.puzzle_game_online', 'view_assist_device') | default('') }}
+    {% endif %}
+  # Check if we have a display
+  has_display: >-
+    {{ view_assist_device not in ['', 'none', None, 'unknown'] and view_assist_device is defined }}
+
+action:
+  - choose:
+      #############################################
+      # START NEW GAME
+      #############################################
+      - conditions:
+          - condition: trigger
+            id: start
+          # Ensure we detected a satellite
+          - condition: template
+            value_template: "{{ satellite_entity not in ['', None] }}"
+        sequence:
+          - service: puzzle_game_online.start_game
+            data:
+              bonus: false
+            response_variable: start_result
+          # Check if game start was successful
+          - if:
+              - condition: template
+                value_template: "{{ start_result.success != true }}"
+            then:
+              - service: assist_satellite.announce
+                continue_on_error: true
+                target:
+                  entity_id: "{{ satellite_entity }}"
+                data:
+                  message: "{{ start_result.message }}"
+                  preannounce: false
+              - stop: "Game start failed"
+          # Only navigate if we have a display
+          - if:
+              - condition: template
+                value_template: "{{ has_display }}"
+            then:
+              - service: view_assist.navigate
+                continue_on_error: true
+                data:
+                  device: "{{ view_assist_device }}"
+                  path: "/puzzle-game-online"
+                  revert_timeout: 0
+              - service: view_assist.set_state
+                continue_on_error: true
+                target:
+                  entity_id: "{{ view_assist_device }}"
+                data:
+                  assist_prompt: kitt_bar
+          - service: puzzle_game_online.set_session
+            data:
+              active: true
+              satellite: "{{ satellite_entity }}"
+              view_assist_device: "{{ view_assist_device if has_display else '' }}"
+          # Announce the first clue
+          - service: assist_satellite.announce
+            continue_on_error: true
+            target:
+              entity_id: "{{ satellite_entity }}"
+            data:
+              message: "{{ state_attr('sensor.puzzle_game_online', 'clue') }}. What's your answer?"
+              preannounce: false
+          # Wait for announcement to finish, then trigger listening
+          - wait_template: "{{ is_state(satellite_entity, 'idle') }}"
+            timeout: "00:00:30"
+          - service: assist_satellite.start_conversation
+            target:
+              entity_id: "{{ satellite_entity }}"
+            data:
+              start_message: ""
+              extra_system_prompt: "You are in puzzle game mode. The user is playing a word puzzle game. Do NOT respond to their speech - just say OK or stay completely silent. The game automation will handle their answer. Do not try to help, answer questions, or have a conversation."
+
+      #############################################
+      # START BONUS GAME
+      #############################################
+      - conditions:
+          - condition: trigger
+            id: bonus
+          # Ensure we detected a satellite
+          - condition: template
+            value_template: "{{ satellite_entity not in ['', None] }}"
+        sequence:
+          - service: puzzle_game_online.start_game
+            data:
+              bonus: true
+            response_variable: start_result
+          # Check if game start was successful
+          - if:
+              - condition: template
+                value_template: "{{ start_result.success != true }}"
+            then:
+              - service: assist_satellite.announce
+                continue_on_error: true
+                target:
+                  entity_id: "{{ satellite_entity }}"
+                data:
+                  message: "{{ start_result.message }}"
+                  preannounce: false
+              - stop: "Game start failed"
+          # Only navigate if we have a display
+          - if:
+              - condition: template
+                value_template: "{{ has_display }}"
+            then:
+              - service: view_assist.navigate
+                continue_on_error: true
+                data:
+                  device: "{{ view_assist_device }}"
+                  path: "/puzzle-game-online"
+                  revert_timeout: 0
+              - service: view_assist.set_state
+                continue_on_error: true
+                target:
+                  entity_id: "{{ view_assist_device }}"
+                data:
+                  assist_prompt: kitt_bar
+          - service: puzzle_game_online.set_session
+            data:
+              active: true
+              satellite: "{{ satellite_entity }}"
+              view_assist_device: "{{ view_assist_device if has_display else '' }}"
+          # Announce the first clue
+          - service: assist_satellite.announce
+            continue_on_error: true
+            target:
+              entity_id: "{{ satellite_entity }}"
+            data:
+              message: "{{ state_attr('sensor.puzzle_game_online', 'clue') }}. What's your answer?"
+              preannounce: false
+          # Wait for announcement to finish, then trigger listening
+          - wait_template: "{{ is_state(satellite_entity, 'idle') }}"
+            timeout: "00:00:30"
+          - service: assist_satellite.start_conversation
+            target:
+              entity_id: "{{ satellite_entity }}"
+            data:
+              start_message: ""
+              extra_system_prompt: "You are in puzzle game mode. The user is playing a word puzzle game. Do NOT respond to their speech - just say OK or stay completely silent. The game automation will handle their answer. Do not try to help, answer questions, or have a conversation."
+
+      #############################################
+      # CONTINUE/RESUME GAME
+      #############################################
+      - conditions:
+          - condition: trigger
+            id: "continue"
+          # Ensure we detected a satellite
+          - condition: template
+            value_template: "{{ satellite_entity not in ['', None] }}"
+        sequence:
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: "{{ state_attr('sensor.puzzle_game_online', 'is_active') != true }}"
+                sequence:
+                  - service: assist_satellite.announce
+                    continue_on_error: true
+                    target:
+                      entity_id: "{{ satellite_entity }}"
+                    data:
+                      message: "No active game found. Say start puzzle game to begin a new one."
+                      preannounce: false
+                  - stop: "No active game"
+          # Only navigate if we have a display
+          - if:
+              - condition: template
+                value_template: "{{ has_display }}"
+            then:
+              - service: view_assist.navigate
+                continue_on_error: true
+                data:
+                  device: "{{ view_assist_device }}"
+                  path: "/puzzle-game-online"
+                  revert_timeout: 0
+              - service: view_assist.set_state
+                continue_on_error: true
+                target:
+                  entity_id: "{{ view_assist_device }}"
+                data:
+                  assist_prompt: kitt_bar
+          - service: puzzle_game_online.set_session
+            data:
+              active: true
+              satellite: "{{ satellite_entity }}"
+              view_assist_device: "{{ view_assist_device if has_display else '' }}"
+          # Announce welcome back
+          - service: assist_satellite.announce
+            continue_on_error: true
+            target:
+              entity_id: "{{ satellite_entity }}"
+            data:
+              message: "Welcome back! {{ state_attr('sensor.puzzle_game_online', 'clue') }}"
+              preannounce: false
+          # Wait for announcement to finish, then trigger listening
+          - wait_template: "{{ is_state(satellite_entity, 'idle') }}"
+            timeout: "00:00:30"
+          - service: assist_satellite.start_conversation
+            target:
+              entity_id: "{{ satellite_entity }}"
+            data:
+              start_message: ""
+              extra_system_prompt: "You are in puzzle game mode. The user is playing a word puzzle game. Do NOT respond to their speech - just say OK or stay completely silent. The game automation will handle their answer. Do not try to help, answer questions, or have a conversation."
+
+      #############################################
+      # PROCESS SPEECH (custom event from coordinator)
+      #############################################
+      - conditions:
+          - condition: trigger
+            id: stt_changed
+          # Game must be active
+          - condition: template
+            value_template: "{{ state_attr('sensor.puzzle_game_online', 'session_active') == true }}"
+          - condition: template
+            value_template: "{{ state_attr('sensor.puzzle_game_online', 'is_active') == true }}"
+        sequence:
+          # Reset timeout retry counter since user spoke
+          - service: puzzle_game_online.reset_timeout
+          - variables:
+              # Clean up speech: lowercase, trim whitespace, remove trailing punctuation
+              spoken_text: "{{ trigger.event.data.text | lower | trim | regex_replace('[.!?,]+$', '') | trim }}"
+
+          # Ignore if this looks like a game start/continue command (already handled by conversation trigger)
+          - condition: template
+            value_template: "{{ 'start puzzle' not in spoken_text and 'puzzle game' not in spoken_text and 'bonus game' not in spoken_text and 'continue puzzle' not in spoken_text and 'resume puzzle' not in spoken_text }}"
+
+          - choose:
+              #############################################
+              # REVEAL LETTER
+              #############################################
+              - conditions:
+                  - condition: template
+                    value_template: "{{ 'reveal' in spoken_text or 'hint' in spoken_text or spoken_text == 'letter' }}"
+                sequence:
+                  - service: puzzle_game_online.reveal_letter
+                  - service: assist_satellite.announce
+                    continue_on_error: true
+                    target:
+                      entity_id: "{{ satellite_entity }}"
+                    data:
+                      message: "{{ state_attr('sensor.puzzle_game_online', 'last_message') }}"
+                      preannounce: false
+
+              #############################################
+              # SKIP WORD
+              #############################################
+              - conditions:
+                  - condition: template
+                    value_template: "{{ 'skip' in spoken_text or 'pass' in spoken_text or 'next' in spoken_text }}"
+                sequence:
+                  - service: puzzle_game_online.skip_word
+                  - service: assist_satellite.announce
+                    continue_on_error: true
+                    target:
+                      entity_id: "{{ satellite_entity }}"
+                    data:
+                      message: "Skipped. {{ state_attr('sensor.puzzle_game_online', 'clue') }}"
+                      preannounce: false
+
+              #############################################
+              # REPEAT CLUE
+              #############################################
+              - conditions:
+                  - condition: template
+                    value_template: "{{ 'repeat' in spoken_text or 'clue' in spoken_text or 'say that again' in spoken_text }}"
+                sequence:
+                  - service: puzzle_game_online.repeat_clue
+                  - service: assist_satellite.announce
+                    continue_on_error: true
+                    target:
+                      entity_id: "{{ satellite_entity }}"
+                    data:
+                      message: "{{ state_attr('sensor.puzzle_game_online', 'clue') }}"
+                      preannounce: false
+
+              #############################################
+              # START SPELLING MODE
+              #############################################
+              - conditions:
+                  - condition: template
+                    value_template: "{{ 'spell' in spoken_text and state_attr('sensor.puzzle_game_online', 'spelling_mode') != true }}"
+                sequence:
+                  - service: puzzle_game_online.start_spelling
+                  - service: assist_satellite.announce
+                    continue_on_error: true
+                    target:
+                      entity_id: "{{ satellite_entity }}"
+                    data:
+                      message: "{{ state_attr('sensor.puzzle_game_online', 'last_message') }}"
+                      preannounce: false
+
+              #############################################
+              # SPELLING MODE - DONE
+              #############################################
+              - conditions:
+                  - condition: template
+                    value_template: "{{ state_attr('sensor.puzzle_game_online', 'spelling_mode') == true and ('done' in spoken_text or 'submit' in spoken_text or 'finished' in spoken_text) }}"
+                sequence:
+                  - service: puzzle_game_online.finish_spelling
+                    data:
+                      text: "{{ spoken_text }}"
+                  - service: assist_satellite.announce
+                    continue_on_error: true
+                    target:
+                      entity_id: "{{ satellite_entity }}"
+                    data:
+                      message: "{{ state_attr('sensor.puzzle_game_online', 'last_message') }}"
+                      preannounce: false
+
+              #############################################
+              # SPELLING MODE - CANCEL
+              #############################################
+              - conditions:
+                  - condition: template
+                    value_template: "{{ state_attr('sensor.puzzle_game_online', 'spelling_mode') == true and ('cancel' in spoken_text or 'nevermind' in spoken_text or 'never mind' in spoken_text) }}"
+                sequence:
+                  - service: puzzle_game_online.cancel_spelling
+                  - service: assist_satellite.announce
+                    continue_on_error: true
+                    target:
+                      entity_id: "{{ satellite_entity }}"
+                    data:
+                      message: "{{ state_attr('sensor.puzzle_game_online', 'last_message') }}"
+                      preannounce: false
+
+              #############################################
+              # SPELLING MODE - ADD LETTER
+              #############################################
+              - conditions:
+                  - condition: template
+                    value_template: "{{ state_attr('sensor.puzzle_game_online', 'spelling_mode') == true and spoken_text | length == 1 and spoken_text | lower in 'abcdefghijklmnopqrstuvwxyz' }}"
+                sequence:
+                  - service: puzzle_game_online.add_letter
+                    data:
+                      letter: "{{ spoken_text }}"
+                  - service: assist_satellite.announce
+                    continue_on_error: true
+                    target:
+                      entity_id: "{{ satellite_entity }}"
+                    data:
+                      message: "{{ state_attr('sensor.puzzle_game_online', 'last_message') }}"
+                      preannounce: false
+
+              #############################################
+              # PAUSE GAME
+              #############################################
+              - conditions:
+                  - condition: template
+                    value_template: "{{ 'pause' in spoken_text or spoken_text in ['stop', 'exit'] }}"
+                sequence:
+                  - service: puzzle_game_online.set_session
+                    data:
+                      active: false
+                  - service: assist_satellite.announce
+                    continue_on_error: true
+                    target:
+                      entity_id: "{{ satellite_entity }}"
+                    data:
+                      message: "Game paused. Say continue puzzle game to resume."
+                      preannounce: false
+                  - if:
+                      - condition: template
+                        value_template: "{{ has_display }}"
+                    then:
+                      - service: view_assist.set_state
+                        continue_on_error: true
+                        target:
+                          entity_id: "{{ view_assist_device }}"
+                        data:
+                          assist_prompt: ""
+                  - stop: "Game paused"
+
+              #############################################
+              # GIVE UP
+              #############################################
+              - conditions:
+                  - condition: template
+                    value_template: "{{ 'give up' in spoken_text or 'end game' in spoken_text or 'end the game' in spoken_text or spoken_text == 'quit' }}"
+                sequence:
+                  - service: puzzle_game_online.set_session
+                    data:
+                      active: false
+                  - service: puzzle_game_online.give_up
+                  - delay:
+                      seconds: 1
+                  - service: assist_satellite.announce
+                    continue_on_error: true
+                    target:
+                      entity_id: "{{ satellite_entity }}"
+                    data:
+                      message: "{{ state_attr('sensor.puzzle_game_online', 'last_message') | default('Game ended.', true) }}"
+                      preannounce: false
+                  - if:
+                      - condition: template
+                        value_template: "{{ has_display }}"
+                    then:
+                      - service: view_assist.set_state
+                        continue_on_error: true
+                        target:
+                          entity_id: "{{ view_assist_device }}"
+                        data:
+                          assist_prompt: ""
+                      # Return to home screen after a short delay
+                      - delay:
+                          seconds: 10
+                      - service: view_assist.navigate
+                        continue_on_error: true
+                        data:
+                          device: "{{ view_assist_device }}"
+                          path: "{{ state_attr(view_assist_device, 'home_view') | default('/lovelace/0', true) }}"
+                  - stop: "Game ended"
+
+              #############################################
+              # ANSWER ATTEMPT (anything else)
+              #############################################
+            default:
+              - service: puzzle_game_online.submit_answer
+                data:
+                  answer: "{{ spoken_text }}"
+              - service: assist_satellite.announce
+                continue_on_error: true
+                target:
+                  entity_id: "{{ satellite_entity }}"
+                data:
+                  message: "{{ state_attr('sensor.puzzle_game_online', 'last_message') | default('Try again.', true) }}"
+                  preannounce: false
+
+          # After processing, check if game is still active
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: "{{ state_attr('sensor.puzzle_game_online', 'is_active') == true and state_attr('sensor.puzzle_game_online', 'session_active') == true }}"
+                sequence:
+                  # Wait for any announcement to finish, then listen again
+                  - wait_template: "{{ is_state(satellite_entity, 'idle') }}"
+                    timeout: "00:00:30"
+                  - service: assist_satellite.start_conversation
+                    continue_on_error: true
+                    target:
+                      entity_id: "{{ satellite_entity }}"
+                    data:
+                      start_message: ""
+                      extra_system_prompt: "You are in puzzle game mode. The user is playing a word puzzle game. Do NOT respond to their speech - just say OK or stay completely silent. The game automation will handle their answer. Do not try to help, answer questions, or have a conversation."
+                  - service: system_log.write
+                    data:
+                      message: "Puzzle Game Online: Started conversation to continue listening"
+                      level: info
+            default:
+              # Game completed - clear assist prompt and return to home after delay (only if display)
+              - if:
+                  - condition: template
+                    value_template: "{{ has_display }}"
+                then:
+                  - service: view_assist.set_state
+                    continue_on_error: true
+                    target:
+                      entity_id: "{{ view_assist_device }}"
+                    data:
+                      assist_prompt: ""
+                  - delay:
+                      seconds: 30
+                  - service: view_assist.navigate
+                    continue_on_error: true
+                    data:
+                      device: "{{ view_assist_device }}"
+                      path: "{{ state_attr(view_assist_device, 'home_view') | default('/lovelace/0', true) }}"
+
+      #############################################
+      # LISTENING TIMEOUT - No response from user
+      #############################################
+      - conditions:
+          - condition: trigger
+            id: listening_timeout
+        sequence:
+          - service: puzzle_game_online.listening_timeout
+            response_variable: timeout_result
+          # Announce the reminder message
+          - service: assist_satellite.announce
+            continue_on_error: true
+            target:
+              entity_id: "{{ satellite_entity }}"
+            data:
+              message: "{{ timeout_result.message }}"
+              preannounce: false
+          # If we should keep retrying, start listening again
+          - if:
+              - condition: template
+                value_template: "{{ timeout_result.should_retry == true or timeout_result.should_pause == true }}"
+            then:
+              - wait_template: "{{ is_state(satellite_entity, 'idle') }}"
+                timeout: "00:00:30"
+              - service: assist_satellite.start_conversation
+                continue_on_error: true
+                target:
+                  entity_id: "{{ satellite_entity }}"
+                data:
+                  start_message: ""
+                  extra_system_prompt: "You are in puzzle game mode. The user is playing a word puzzle game. Do NOT respond to their speech - just say OK or stay completely silent. The game automation will handle their answer. Do not try to help, answer questions, or have a conversation."

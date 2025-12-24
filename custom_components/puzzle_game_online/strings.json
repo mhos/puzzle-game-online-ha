@@ -1,0 +1,38 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Set Up Puzzle Game Online",
+        "description": "Enter your display name to register with the puzzle game server at {api_url}.",
+        "data": {
+          "display_name": "Display Name"
+        },
+        "data_description": {
+          "display_name": "Your name as shown on leaderboards"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to the puzzle game server",
+      "display_name_required": "Display name is required"
+    },
+    "abort": {
+      "already_configured": "Puzzle Game Online is already configured"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Puzzle Game Online Settings",
+        "description": "Update your settings.",
+        "data": {
+          "display_name": "Display Name"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to the puzzle game server",
+      "display_name_required": "Display name is required"
+    }
+  }
+}

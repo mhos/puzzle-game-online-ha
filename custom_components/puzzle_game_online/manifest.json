@@ -1,0 +1,13 @@
+{
+  "domain": "puzzle_game_online",
+  "name": "Puzzle Game Online",
+  "codeowners": ["@mhos"],
+  "config_flow": true,
+  "dependencies": ["http"],
+  "documentation": "https://github.com/mhos/puzzle-game-online-ha",
+  "integration_type": "service",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/mhos/puzzle-game-online-ha/issues",
+  "requirements": ["aiohttp>=3.8.0"],
+  "version": "1.0.0"
+}
