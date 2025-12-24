@@ -54,6 +54,14 @@ Click the button above, or manually:
 
 **That's it! You're ready to play!**
 
+### Updating the Blueprint
+
+When the blueprint is updated:
+1. Go to **Settings > Automations & Scenes > Blueprints**
+2. Find "Puzzle Game Online Controller"
+3. Click the three dots menu (⋮) > **Re-import blueprint**
+4. Your automations using this blueprint will automatically use the updated version
+
 ---
 
 ### Manual Installation (Without HACS)
