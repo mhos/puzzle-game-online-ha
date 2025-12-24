@@ -74,8 +74,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Register services
     await _async_setup_services(hass, coordinator)
 
-    # Register WebSocket commands for panel
-    _async_register_websocket_commands(hass)
+    # Register WebSocket commands for panel (only once)
+    if not hass.data[DOMAIN].get("_ws_registered"):
+        _async_register_websocket_commands(hass)
+        hass.data[DOMAIN]["_ws_registered"] = True
 
     # Register frontend panel
     await _async_register_panel(hass)
@@ -282,6 +284,7 @@ def _fire_result_event(hass: HomeAssistant, event_type: str, data: dict[str, Any
 
 def _async_register_websocket_commands(hass: HomeAssistant) -> None:
     """Register WebSocket commands for the panel."""
+    _LOGGER.debug("Registering WebSocket commands for panel")
 
     @websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/user_info"})
     @websocket_api.async_response
@@ -291,16 +294,22 @@ def _async_register_websocket_commands(hass: HomeAssistant) -> None:
         msg: dict[str, Any],
     ) -> None:
         """Get user info."""
+        _LOGGER.debug("WS user_info called")
         try:
             # Get API from any entry
-            for entry_data in hass.data.get(DOMAIN, {}).values():
+            for entry_id, entry_data in hass.data.get(DOMAIN, {}).items():
+                if entry_id.startswith("_"):
+                    continue
                 api = entry_data.get("api")
                 if api:
                     result = await api.get_my_stats()
+                    _LOGGER.debug("WS user_info result: %s", result)
                     connection.send_result(msg["id"], result)
                     return
+            _LOGGER.warning("WS user_info: No API configured")
             connection.send_error(msg["id"], "not_found", "No API configured")
         except Exception as err:
+            _LOGGER.error("WS user_info error: %s", err)
             connection.send_error(msg["id"], "error", str(err))
 
     @websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/stats"})
@@ -311,15 +320,21 @@ def _async_register_websocket_commands(hass: HomeAssistant) -> None:
         msg: dict[str, Any],
     ) -> None:
         """Get user stats."""
+        _LOGGER.debug("WS stats called")
         try:
-            for entry_data in hass.data.get(DOMAIN, {}).values():
+            for entry_id, entry_data in hass.data.get(DOMAIN, {}).items():
+                if entry_id.startswith("_"):
+                    continue
                 api = entry_data.get("api")
                 if api:
                     result = await api.get_my_stats()
+                    _LOGGER.debug("WS stats result: %s", result)
                     connection.send_result(msg["id"], result)
                     return
+            _LOGGER.warning("WS stats: No API configured")
             connection.send_error(msg["id"], "not_found", "No API configured")
         except Exception as err:
+            _LOGGER.error("WS stats error: %s", err)
             connection.send_error(msg["id"], "error", str(err))
 
     @websocket_api.websocket_command({
@@ -333,19 +348,26 @@ def _async_register_websocket_commands(hass: HomeAssistant) -> None:
         msg: dict[str, Any],
     ) -> None:
         """Get leaderboard."""
+        _LOGGER.debug("WS leaderboard called with msg: %s", msg)
         try:
             period = msg.get("period", "daily")
-            for entry_data in hass.data.get(DOMAIN, {}).values():
+            for entry_id, entry_data in hass.data.get(DOMAIN, {}).items():
+                if entry_id.startswith("_"):
+                    continue
                 api = entry_data.get("api")
                 if api:
                     result = await api.get_leaderboard(period)
+                    _LOGGER.debug("WS leaderboard result: %s", result)
                     connection.send_result(msg["id"], result)
                     return
+            _LOGGER.warning("WS leaderboard: No API configured")
             connection.send_error(msg["id"], "not_found", "No API configured")
         except Exception as err:
+            _LOGGER.error("WS leaderboard error: %s", err)
             connection.send_error(msg["id"], "error", str(err))
 
     # Register the WebSocket commands
     websocket_api.async_register_command(hass, ws_get_user_info)
     websocket_api.async_register_command(hass, ws_get_stats)
     websocket_api.async_register_command(hass, ws_get_leaderboard)
+    _LOGGER.info("WebSocket commands registered for panel")
