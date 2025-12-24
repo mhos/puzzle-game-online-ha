@@ -22,7 +22,7 @@ BASE_REVEALS: Final = 3
 # Panel Configuration
 PANEL_URL: Final = "/puzzle-game-online"
 PANEL_TITLE: Final = "Puzzle Game"
-PANEL_ICON: Final = "mdi:puzzle"
+PANEL_ICON: Final = "mdi:owl"
 
 # Sensor
 SENSOR_NAME: Final = "Puzzle Game Online"

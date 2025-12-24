@@ -104,8 +104,8 @@ class PuzzleGameSensor(CoordinatorEntity, SensorEntity):
     def icon(self) -> str:
         """Return the icon."""
         if self.coordinator.game_state.get("is_active"):
-            return "mdi:puzzle-check"
-        return "mdi:puzzle"
+            return "mdi:puzzle"
+        return "mdi:puzzle-outline"
 
     @callback
     def _handle_coordinator_update(self) -> None:
