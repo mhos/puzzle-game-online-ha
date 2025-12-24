@@ -163,12 +163,68 @@ class GameManager:
             _LOGGER.error("Failed to start game: %s", err)
             return {"success": False, "message": f"Failed to start game: {err}"}
 
+    def _normalize_answer(self, answer: str) -> str:
+        """Normalize an answer to handle spelled-out words from STT.
+
+        Converts patterns like:
+        - "T-A-S-T-E" -> "TASTE"
+        - "T A S T E" -> "TASTE"
+        - "T. A. S. T. E." -> "TASTE"
+        - "tango alpha sierra tango echo" -> "TASTE" (NATO phonetic)
+        """
+        answer = answer.strip().upper()
+
+        # NATO phonetic alphabet mapping
+        nato_alphabet = {
+            "ALPHA": "A", "ALFA": "A", "BRAVO": "B", "CHARLIE": "C",
+            "DELTA": "D", "ECHO": "E", "FOXTROT": "F", "GOLF": "G",
+            "HOTEL": "H", "INDIA": "I", "JULIET": "J", "JULIETT": "J",
+            "KILO": "K", "LIMA": "L", "MIKE": "M", "NOVEMBER": "N",
+            "OSCAR": "O", "PAPA": "P", "QUEBEC": "Q", "ROMEO": "R",
+            "SIERRA": "S", "TANGO": "T", "UNIFORM": "U", "VICTOR": "V",
+            "WHISKEY": "W", "WHISKY": "W", "XRAY": "X", "X-RAY": "X",
+            "YANKEE": "Y", "ZULU": "Z",
+        }
+
+        # Check if it looks like NATO phonetic (multiple words, each is a NATO word)
+        words = answer.split()
+        if len(words) > 1:
+            nato_result = []
+            is_nato = True
+            for word in words:
+                word_clean = word.strip(".,!?")
+                if word_clean in nato_alphabet:
+                    nato_result.append(nato_alphabet[word_clean])
+                elif len(word_clean) == 1 and word_clean.isalpha():
+                    # Single letter is okay too
+                    nato_result.append(word_clean)
+                else:
+                    is_nato = False
+                    break
+            if is_nato and nato_result:
+                return "".join(nato_result)
+
+        # Check for spelled-out pattern: single letters separated by dashes, spaces, or dots
+        # Pattern: "S-I-G-H-T" or "S I G H T" or "S.I.G.H.T"
+        # First, normalize separators to spaces
+        normalized = answer.replace("-", " ").replace(".", " ")
+        parts = normalized.split()
+
+        # If all parts are single letters, join them
+        if len(parts) > 1 and all(len(p) == 1 and p.isalpha() for p in parts):
+            return "".join(parts)
+
+        # Return original (already uppercased and stripped)
+        return answer
+
     async def submit_answer(self, answer: str) -> dict[str, Any]:
         """Submit an answer for the current word or theme."""
         if not self.state.is_active:
             return {"success": False, "message": "No active game"}
 
-        answer = answer.strip()
+        # Normalize the answer to handle spelled-out words
+        answer = self._normalize_answer(answer)
+        _LOGGER.debug("Normalized answer: %s", answer)
 
         if self.state.phase == 1:
             return await self._submit_word_answer(answer)

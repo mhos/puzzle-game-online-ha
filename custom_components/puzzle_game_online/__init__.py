@@ -11,7 +11,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
 from homeassistant.helpers import config_validation as cv
-from homeassistant.components import frontend
+from homeassistant.components import frontend, websocket_api
 from homeassistant.components.http import StaticPathConfig
 
 from .const import (
@@ -73,6 +73,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Register services
     await _async_setup_services(hass, coordinator)
+
+    # Register WebSocket commands for panel
+    _async_register_websocket_commands(hass)
 
     # Register frontend panel
     await _async_register_panel(hass)
@@ -275,3 +278,74 @@ async def _async_setup_services(
 def _fire_result_event(hass: HomeAssistant, event_type: str, data: dict[str, Any]) -> None:
     """Fire an event with result data."""
     hass.bus.async_fire(f"{DOMAIN}_{event_type}", data)
+
+
+def _async_register_websocket_commands(hass: HomeAssistant) -> None:
+    """Register WebSocket commands for the panel."""
+
+    @websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/user_info"})
+    @websocket_api.async_response
+    async def ws_get_user_info(
+        hass: HomeAssistant,
+        connection: websocket_api.ActiveConnection,
+        msg: dict[str, Any],
+    ) -> None:
+        """Get user info."""
+        try:
+            # Get API from any entry
+            for entry_data in hass.data.get(DOMAIN, {}).values():
+                api = entry_data.get("api")
+                if api:
+                    result = await api.get_my_stats()
+                    connection.send_result(msg["id"], result)
+                    return
+            connection.send_error(msg["id"], "not_found", "No API configured")
+        except Exception as err:
+            connection.send_error(msg["id"], "error", str(err))
+
+    @websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/stats"})
+    @websocket_api.async_response
+    async def ws_get_stats(
+        hass: HomeAssistant,
+        connection: websocket_api.ActiveConnection,
+        msg: dict[str, Any],
+    ) -> None:
+        """Get user stats."""
+        try:
+            for entry_data in hass.data.get(DOMAIN, {}).values():
+                api = entry_data.get("api")
+                if api:
+                    result = await api.get_my_stats()
+                    connection.send_result(msg["id"], result)
+                    return
+            connection.send_error(msg["id"], "not_found", "No API configured")
+        except Exception as err:
+            connection.send_error(msg["id"], "error", str(err))
+
+    @websocket_api.websocket_command({
+        vol.Required("type"): f"{DOMAIN}/leaderboard",
+        vol.Optional("period", default="daily"): str,
+    })
+    @websocket_api.async_response
+    async def ws_get_leaderboard(
+        hass: HomeAssistant,
+        connection: websocket_api.ActiveConnection,
+        msg: dict[str, Any],
+    ) -> None:
+        """Get leaderboard."""
+        try:
+            period = msg.get("period", "daily")
+            for entry_data in hass.data.get(DOMAIN, {}).values():
+                api = entry_data.get("api")
+                if api:
+                    result = await api.get_leaderboard(period)
+                    connection.send_result(msg["id"], result)
+                    return
+            connection.send_error(msg["id"], "not_found", "No API configured")
+        except Exception as err:
+            connection.send_error(msg["id"], "error", str(err))
+
+    # Register the WebSocket commands
+    websocket_api.async_register_command(hass, ws_get_user_info)
+    websocket_api.async_register_command(hass, ws_get_stats)
+    websocket_api.async_register_command(hass, ws_get_leaderboard)

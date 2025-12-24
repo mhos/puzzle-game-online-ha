@@ -387,6 +387,27 @@ class PuzzleGameOnlinePanel extends HTMLElement {
                     flex-wrap: wrap;
                 }
 
+                .period-tab {
+                    padding: 10px 20px;
+                    background: rgba(255, 255, 255, 0.2);
+                    border: none;
+                    border-radius: 10px;
+                    color: rgba(255,255,255,0.8);
+                    font-size: 1rem;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                }
+
+                .period-tab:hover {
+                    background: rgba(255, 255, 255, 0.3);
+                }
+
+                .period-tab.active {
+                    background: rgba(255, 255, 255, 0.4);
+                    color: white;
+                    font-weight: bold;
+                }
+
                 .leaderboard-table {
                     width: 100%;
                     border-collapse: collapse;
@@ -747,9 +768,9 @@ class PuzzleGameOnlinePanel extends HTMLElement {
     _renderLeaderboard() {
         return `
             <div class="period-tabs">
-                <button class="tab period-tab ${this._leaderboardPeriod === 'daily' ? 'active' : ''}" data-period="daily">Today</button>
-                <button class="tab period-tab ${this._leaderboardPeriod === 'weekly' ? 'active' : ''}" data-period="weekly">This Week</button>
-                <button class="tab period-tab ${this._leaderboardPeriod === 'alltime' ? 'active' : ''}" data-period="alltime">All Time</button>
+                <button class="period-tab ${this._leaderboardPeriod === 'daily' ? 'active' : ''}" data-period="daily">Today</button>
+                <button class="period-tab ${this._leaderboardPeriod === 'weekly' ? 'active' : ''}" data-period="weekly">This Week</button>
+                <button class="period-tab ${this._leaderboardPeriod === 'alltime' ? 'active' : ''}" data-period="alltime">All Time</button>
             </div>
 
             ${this._leaderboard ? `
