@@ -63,5 +63,7 @@ ATTR_SPELLING_BUFFER: Final = "spelling_buffer"
 
 # Config
 CONF_API_KEY: Final = "api_key"
+CONF_USERNAME: Final = "username"
+CONF_EMAIL: Final = "email"
 CONF_DISPLAY_NAME: Final = "display_name"
 CONF_USER_ID: Final = "user_id"

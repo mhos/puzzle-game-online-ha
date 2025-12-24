@@ -2,7 +2,8 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, date
+import random
+from datetime import datetime
 from typing import Any
 
 from .api_client import PuzzleGameAPI, PuzzleGameAPIError
@@ -16,28 +17,26 @@ class GameState:
 
     def __init__(self) -> None:
         """Initialize game state."""
-        self.game_id: str | None = None
-        self.session_id: str | None = None
         self.puzzle_id: str | None = None
-        self.puzzle_date: date | None = None
+        self.session_id: str | None = None
+        self.is_bonus: bool = False
 
-        # Puzzle data
-        self.theme: str = ""
-        self.words: list[str] = []
-        self.clues: list[str] = []
+        # Puzzle data (from API - no answers)
+        self.words_data: list[dict] = []  # [{clue, length}]
+        self.theme: str = ""  # Only revealed at end
 
         # Game progress
         self.phase: int = 1  # 1 = solving words, 2 = guessing theme
         self.current_word_index: int = 0
-        self.score: int = 0
-        self.reveals_remaining: int = BASE_REVEALS
-        self.reveals_earned: int = 0
+        self.reveals_available: int = BASE_REVEALS
+        self.reveals_used: int = 0
 
-        # Tracking
+        # Tracking (mirrored from server)
         self.solved_words: list[int] = []  # Indices of solved words
         self.skipped_words: list[int] = []  # Indices of skipped words
         self.revealed_letters: dict[int, list[int]] = {}  # word_index -> letter positions
-        self.theme_revealed_letters: list[int] = []
+        self.word_displays: dict[int, str] = {}  # word_index -> display string (e.g., "A _ _ L E")
+        self.theme_solved: bool = False
 
         # Status
         self.is_active: bool = False
@@ -45,32 +44,33 @@ class GameState:
         self.started_at: datetime | None = None
         self.completed_at: datetime | None = None
 
+        # Score (tracked server-side but we keep local copy)
+        self.words_solved_count: int = 0
+        self.final_score: int | None = None
+
         # Last feedback
         self.last_message: str = ""
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert state to dictionary."""
+        """Convert state to dictionary for sensor attributes."""
         return {
-            "game_id": self.game_id,
-            "session_id": self.session_id,
             "puzzle_id": self.puzzle_id,
-            "puzzle_date": self.puzzle_date.isoformat() if self.puzzle_date else None,
-            "theme": self.theme,
-            "words": self.words,
-            "clues": self.clues,
+            "session_id": self.session_id,
+            "is_bonus": self.is_bonus,
             "phase": self.phase,
             "current_word_index": self.current_word_index,
-            "score": self.score,
-            "reveals_remaining": self.reveals_remaining,
-            "reveals_earned": self.reveals_earned,
+            "words_count": len(self.words_data),
+            "reveals_available": self.reveals_available,
+            "reveals_used": self.reveals_used,
             "solved_words": self.solved_words,
+            "solved_count": len(self.solved_words),
             "skipped_words": self.skipped_words,
-            "revealed_letters": self.revealed_letters,
-            "theme_revealed_letters": self.theme_revealed_letters,
+            "theme_solved": self.theme_solved,
             "is_active": self.is_active,
             "gave_up": self.gave_up,
             "started_at": self.started_at.isoformat() if self.started_at else None,
             "completed_at": self.completed_at.isoformat() if self.completed_at else None,
+            "final_score": self.final_score,
             "last_message": self.last_message,
         }
 
@@ -102,30 +102,43 @@ class GameManager:
     async def start_game(self, is_bonus: bool = False) -> dict[str, Any]:
         """Start a new game."""
         try:
-            # Get today's puzzle
-            puzzle_data = await self._api.get_daily_puzzle()
+            # Get puzzle from API
+            if is_bonus:
+                puzzle_data = await self._api.get_bonus_puzzle()
+            else:
+                puzzle_data = await self._api.get_daily_puzzle()
+
             puzzle_id = puzzle_data.get("id")
-
             if not puzzle_id:
-                return {"success": False, "message": "No puzzle available today"}
+                return {"success": False, "message": "No puzzle available"}
 
-            # Start a game session
-            session_data = await self._api.start_game(puzzle_id)
+            # Start a game session on the server
+            try:
+                session_data = await self._api.start_game(str(puzzle_id))
+            except PuzzleGameAPIError as err:
+                error_msg = str(err)
+                if "already completed" in error_msg.lower():
+                    return {"success": False, "message": "You've already played today's puzzle! Try a bonus game."}
+                raise
 
             # Initialize game state
             self.state.reset()
-            self.state.game_id = session_data.get("game_id")
+            self.state.puzzle_id = str(puzzle_id)
             self.state.session_id = session_data.get("session_id")
-            self.state.puzzle_id = puzzle_id
-            self.state.puzzle_date = date.today()
+            self.state.is_bonus = is_bonus
 
-            # Store puzzle data
-            self.state.theme = puzzle_data.get("theme", "")
-            self.state.words = [w.get("word", "") for w in puzzle_data.get("words", [])]
-            self.state.clues = [w.get("clue", "") for w in puzzle_data.get("words", [])]
+            # Store puzzle data (clues and lengths only - no answers)
+            self.state.words_data = puzzle_data.get("words", [])
 
-            # Set initial reveals from session
-            self.state.reveals_remaining = session_data.get("reveals_remaining", BASE_REVEALS)
+            # Initialize word displays with blanks
+            for i, word_data in enumerate(self.state.words_data):
+                length = word_data.get("length", 5)
+                self.state.word_displays[i] = " ".join(["_"] * length)
+
+            # Set reveals from session
+            self.state.reveals_available = session_data.get("reveals_available", BASE_REVEALS)
+            self.state.solved_words = session_data.get("solved_words", [])
+            self.state.theme_solved = session_data.get("theme_solved", False)
 
             # Mark as active
             self.state.is_active = True
@@ -134,8 +147,9 @@ class GameManager:
             self.state.current_word_index = 0
 
             # Build initial message
-            first_clue = self.state.clues[0] if self.state.clues else "No clue available"
-            message = f"Let's play! Word 1 of 5. {first_clue}"
+            first_clue = self._get_clue(0)
+            game_type = "bonus puzzle" if is_bonus else "daily puzzle"
+            message = f"Let's play the {game_type}! Word 1 of 5. {first_clue}"
             self.state.last_message = message
 
             return {
@@ -154,7 +168,7 @@ class GameManager:
         if not self.state.is_active:
             return {"success": False, "message": "No active game"}
 
-        answer = answer.strip().upper()
+        answer = answer.strip()
 
         if self.state.phase == 1:
             return await self._submit_word_answer(answer)
@@ -168,20 +182,24 @@ class GameManager:
         try:
             result = await self._api.check_word(
                 self.state.puzzle_id,
-                self.state.session_id,
                 word_index,
                 answer,
             )
 
             is_correct = result.get("correct", False)
+            already_solved = result.get("already_solved", False)
 
             if is_correct:
-                # Update state
-                self.state.solved_words.append(word_index)
-                points = result.get("points_earned", 10)
-                self.state.score += points
-                self.state.reveals_remaining = result.get("reveals_remaining", self.state.reveals_remaining)
-                self.state.reveals_earned += 1
+                if not already_solved:
+                    # Update state
+                    if word_index not in self.state.solved_words:
+                        self.state.solved_words.append(word_index)
+
+                    # Update reveals based on words solved
+                    self.state.reveals_available = BASE_REVEALS + len(self.state.solved_words)
+
+                    # Update word display to show the correct answer
+                    self.state.word_displays[word_index] = answer.upper()
 
                 # Check if all words solved
                 if len(self.state.solved_words) >= WORDS_PER_PUZZLE:
@@ -191,8 +209,9 @@ class GameManager:
                 next_word = self._find_next_unsolved_word()
                 if next_word is not None:
                     self.state.current_word_index = next_word
-                    clue = self.state.clues[next_word]
-                    message = f"Correct! {points} points. Word {next_word + 1} of 5. {clue}"
+                    clue = self._get_clue(next_word)
+                    words_solved = len(self.state.solved_words)
+                    message = f"Correct! {words_solved} of 5 words solved. Word {next_word + 1}. {clue}"
                     self.state.last_message = message
                     return {
                         "success": True,
@@ -200,14 +219,13 @@ class GameManager:
                         "message": message,
                         "blanks": self.get_current_blanks(),
                         "clue": clue,
-                        "score": self.state.score,
                     }
                 else:
                     return await self._transition_to_phase2()
             else:
                 # Wrong answer
                 attempts_remaining = result.get("attempts_remaining")
-                message = f"Not quite. Try again!"
+                message = "Not quite. Try again!"
                 if attempts_remaining is not None and attempts_remaining <= 5:
                     message += f" ({attempts_remaining} attempts left)"
                 self.state.last_message = message
@@ -216,7 +234,7 @@ class GameManager:
                     "correct": False,
                     "message": message,
                     "blanks": self.get_current_blanks(),
-                    "clue": self.state.clues[word_index],
+                    "clue": self._get_clue(word_index),
                 }
 
         except PuzzleGameAPIError as err:
@@ -226,24 +244,21 @@ class GameManager:
     async def _submit_theme_answer(self, answer: str) -> dict[str, Any]:
         """Submit a theme answer."""
         try:
-            result = await self._api.check_theme(
-                self.state.puzzle_id,
-                self.state.session_id,
-                answer,
-            )
+            result = await self._api.check_theme(self.state.puzzle_id, answer)
 
             is_correct = result.get("correct", False)
+            already_solved = result.get("already_solved", False)
 
             if is_correct:
-                bonus = result.get("bonus_points", 20)
-                self.state.score += bonus
+                self.state.theme_solved = True
+                self.state.theme = answer.upper()  # Store the correct theme
                 return await self._end_game(
                     theme_correct=True,
-                    message=f"Correct! The theme was {self.state.theme}. Bonus {bonus} points! Final score: {self.state.score}",
+                    message=f"Correct! The theme was {answer.upper()}! Game complete!",
                 )
             else:
                 attempts_remaining = result.get("attempts_remaining")
-                message = f"Not the theme. Try again!"
+                message = "Not the theme. Try again!"
                 if attempts_remaining is not None and attempts_remaining <= 3:
                     message += f" ({attempts_remaining} attempts left)"
                 self.state.last_message = message
@@ -251,7 +266,6 @@ class GameManager:
                     "success": True,
                     "correct": False,
                     "message": message,
-                    "blanks": self.get_theme_blanks(),
                 }
 
         except PuzzleGameAPIError as err:
@@ -263,12 +277,13 @@ class GameManager:
         self.state.phase = 2
         self.state.current_word_index = -1
 
-        # Reveal first letter of theme as hint
-        if self.state.theme:
-            self.state.theme_revealed_letters = [0]
+        # Get the solved words for display
+        solved_word_names = [
+            self.state.word_displays.get(i, "???")
+            for i in sorted(self.state.solved_words)
+        ]
 
-        solved_words = [self.state.words[i] for i in self.state.solved_words]
-        message = f"All words solved! Now guess the theme that connects: {', '.join(solved_words)}"
+        message = f"All words solved! Now guess the theme that connects: {', '.join(solved_word_names)}"
         self.state.last_message = message
 
         return {
@@ -276,9 +291,7 @@ class GameManager:
             "correct": True,
             "message": message,
             "phase": 2,
-            "blanks": self.get_theme_blanks(),
-            "solved_words": solved_words,
-            "score": self.state.score,
+            "solved_words": solved_word_names,
         }
 
     async def _end_game(
@@ -294,16 +307,30 @@ class GameManager:
             delta = self.state.completed_at - self.state.started_at
             time_seconds = int(delta.total_seconds())
 
+        # Build word_results for score submission
+        word_results = []
+        for i in range(WORDS_PER_PUZZLE):
+            solved = i in self.state.solved_words
+            reveals_used = len(self.state.revealed_letters.get(i, []))
+            word_results.append({"solved": solved, "reveals_used": reveals_used})
+
         # Submit score to API
         try:
-            await self._api.submit_score(
+            score_result = await self._api.submit_score(
                 puzzle_id=self.state.puzzle_id,
-                session_id=self.state.session_id,
-                final_score=self.state.score,
+                word_results=word_results,
                 time_seconds=time_seconds,
-                words_solved=len(self.state.solved_words),
                 theme_correct=theme_correct,
             )
+            self.state.final_score = score_result.get("final_score")
+            rank = score_result.get("rank")
+            total = score_result.get("total_players")
+
+            if rank and total:
+                message += f" Final score: {self.state.final_score}. Rank: {rank} of {total}."
+            elif self.state.final_score:
+                message += f" Final score: {self.state.final_score}."
+
         except PuzzleGameAPIError as err:
             _LOGGER.error("Failed to submit score: %s", err)
 
@@ -313,8 +340,7 @@ class GameManager:
             "success": True,
             "game_over": True,
             "message": message,
-            "final_score": self.state.score,
-            "theme": self.state.theme,
+            "final_score": self.state.final_score,
             "theme_correct": theme_correct,
         }
 
@@ -323,48 +349,73 @@ class GameManager:
         if not self.state.is_active:
             return {"success": False, "message": "No active game"}
 
-        if self.state.reveals_remaining <= 0:
+        if self.state.phase != 1:
+            return {"success": False, "message": "Can only reveal during word phase"}
+
+        if self.state.reveals_available <= self.state.reveals_used:
             return {"success": False, "message": "No reveals remaining"}
 
-        word_index = self.state.current_word_index if self.state.phase == 1 else -1
+        word_index = self.state.current_word_index
+        word_data = self.state.words_data[word_index] if word_index < len(self.state.words_data) else None
+        if not word_data:
+            return {"success": False, "message": "Invalid word"}
+
+        word_length = word_data.get("length", 5)
+        revealed = self.state.revealed_letters.get(word_index, [])
+
+        # Find an unrevealed letter position
+        available_positions = [i for i in range(word_length) if i not in revealed]
+        if not available_positions:
+            return {"success": False, "message": "All letters already revealed"}
+
+        # Pick a random unrevealed position
+        letter_index = random.choice(available_positions)
 
         try:
             result = await self._api.reveal_letter(
                 self.state.puzzle_id,
-                self.state.session_id,
                 word_index,
+                letter_index,
             )
 
-            if result.get("success"):
-                letter = result.get("letter", "?")
-                position = result.get("position", 0)
-                self.state.reveals_remaining = result.get("reveals_remaining", self.state.reveals_remaining - 1)
+            letter = result.get("letter", "?")
+            actual_index = result.get("index", letter_index)
+            self.state.reveals_used = result.get("reveals_used", self.state.reveals_used + 1)
+            self.state.reveals_available = BASE_REVEALS + len(self.state.solved_words)
 
-                # Track revealed letter locally
-                if self.state.phase == 1:
-                    if word_index not in self.state.revealed_letters:
-                        self.state.revealed_letters[word_index] = []
-                    self.state.revealed_letters[word_index].append(position)
-                else:
-                    self.state.theme_revealed_letters.append(position)
+            # Track revealed letter locally
+            if word_index not in self.state.revealed_letters:
+                self.state.revealed_letters[word_index] = []
+            if actual_index not in self.state.revealed_letters[word_index]:
+                self.state.revealed_letters[word_index].append(actual_index)
 
-                blanks = self.get_current_blanks() if self.state.phase == 1 else self.get_theme_blanks()
-                message = f"Revealed letter {letter}. {self.state.reveals_remaining} reveals left."
-                self.state.last_message = message
+            # Update word display
+            self._update_word_display(word_index, actual_index, letter)
 
-                return {
-                    "success": True,
-                    "message": message,
-                    "letter": letter,
-                    "blanks": blanks,
-                    "reveals_remaining": self.state.reveals_remaining,
-                }
-            else:
-                return {"success": False, "message": result.get("message", "Cannot reveal")}
+            remaining = self.state.reveals_available - self.state.reveals_used
+            message = f"Revealed letter {letter}. {remaining} reveals left."
+            self.state.last_message = message
+
+            return {
+                "success": True,
+                "message": message,
+                "letter": letter,
+                "blanks": self.get_current_blanks(),
+                "reveals_remaining": remaining,
+            }
 
         except PuzzleGameAPIError as err:
             _LOGGER.error("Failed to reveal letter: %s", err)
             return {"success": False, "message": f"Error revealing letter: {err}"}
+
+    def _update_word_display(self, word_index: int, position: int, letter: str) -> None:
+        """Update the word display with a revealed letter."""
+        current_display = self.state.word_displays.get(word_index, "")
+        chars = current_display.split(" ")
+
+        if position < len(chars):
+            chars[position] = letter.upper()
+            self.state.word_displays[word_index] = " ".join(chars)
 
     def skip_word(self) -> dict[str, Any]:
         """Skip the current word."""
@@ -379,7 +430,7 @@ class GameManager:
         next_word = self._find_next_unsolved_word()
         if next_word is not None:
             self.state.current_word_index = next_word
-            clue = self.state.clues[next_word]
+            clue = self._get_clue(next_word)
             message = f"Skipped. Word {next_word + 1} of 5. {clue}"
             self.state.last_message = message
             return {
@@ -391,9 +442,10 @@ class GameManager:
         else:
             # All words either solved or skipped - go back to first skipped
             if self.state.skipped_words:
-                self.state.current_word_index = self.state.skipped_words[0]
-                clue = self.state.clues[self.state.current_word_index]
-                message = f"Back to word {self.state.current_word_index + 1}. {clue}"
+                first_skipped = min(self.state.skipped_words)
+                self.state.current_word_index = first_skipped
+                clue = self._get_clue(first_skipped)
+                message = f"Back to word {first_skipped + 1}. {clue}"
                 self.state.last_message = message
                 return {
                     "success": True,
@@ -403,59 +455,42 @@ class GameManager:
                 }
             return {"success": False, "message": "No more words to skip to"}
 
+    def repeat_clue(self) -> dict[str, Any]:
+        """Repeat the current clue."""
+        if not self.state.is_active:
+            return {"success": False, "message": "No active game"}
+
+        clue = self.get_current_clue()
+        self.state.last_message = clue
+        return {"success": True, "message": clue, "clue": clue}
+
+    def _get_clue(self, word_index: int) -> str:
+        """Get the clue for a word index."""
+        if 0 <= word_index < len(self.state.words_data):
+            return self.state.words_data[word_index].get("clue", "No clue")
+        return "No clue"
+
     def get_current_clue(self) -> str:
         """Get the current clue."""
-        if self.state.phase == 1 and self.state.clues:
-            idx = self.state.current_word_index
-            if 0 <= idx < len(self.state.clues):
-                return self.state.clues[idx]
-        return "Guess the theme!"
+        if self.state.phase == 1:
+            return self._get_clue(self.state.current_word_index)
+        return "Guess the theme that connects all the words!"
 
     def get_current_blanks(self) -> str:
-        """Get the current word as blanks with revealed letters."""
-        if self.state.phase != 1 or not self.state.words:
-            return self.get_theme_blanks()
+        """Get the current word display."""
+        if self.state.phase != 1:
+            return ""
 
         idx = self.state.current_word_index
-        if not (0 <= idx < len(self.state.words)):
-            return ""
-
-        word = self.state.words[idx]
-        revealed = self.state.revealed_letters.get(idx, [])
-
-        blanks = []
-        for i, char in enumerate(word):
-            if char == " ":
-                blanks.append(" ")
-            elif i in revealed:
-                blanks.append(char)
-            else:
-                blanks.append("_")
-
-        return " ".join(blanks)
-
-    def get_theme_blanks(self) -> str:
-        """Get the theme as blanks with revealed letters."""
-        if not self.state.theme:
-            return ""
-
-        blanks = []
-        for i, char in enumerate(self.state.theme):
-            if char == " ":
-                blanks.append(" ")
-            elif i in self.state.theme_revealed_letters:
-                blanks.append(char)
-            else:
-                blanks.append("_")
-
-        return " ".join(blanks)
+        return self.state.word_displays.get(idx, "")
 
     def _find_next_unsolved_word(self) -> int | None:
         """Find the next unsolved, unskipped word."""
         current = self.state.current_word_index
+        total = len(self.state.words_data)
 
         # Look forward from current position
-        for i in range(current + 1, WORDS_PER_PUZZLE):
+        for i in range(current + 1, total):
             if i not in self.state.solved_words and i not in self.state.skipped_words:
                 return i
 
@@ -478,9 +513,15 @@ class GameManager:
 
         self.state.gave_up = True
 
-        # Reveal all answers
-        words_str = ", ".join(self.state.words)
-        message = f"Game over. The words were: {words_str}. The theme was: {self.state.theme}. Final score: {self.state.score}"
+        # Get solved word names
+        solved_word_names = [
+            self.state.word_displays.get(i, "???")
+            for i in sorted(self.state.solved_words)
+        ]
+
+        message = f"Game over. You solved {len(self.state.solved_words)} of 5 words."
+        if solved_word_names:
+            message += f" Words found: {', '.join(solved_word_names)}."
 
         return await self._end_game(theme_correct=False, message=message)
 
@@ -548,14 +589,18 @@ class GameManager:
         self.timeout_count += 1
 
         if self.timeout_count >= 3:
-            message = "I'll wait. Say your answer when ready."
+            message = "I'll pause the game. Say 'continue puzzle game' when ready."
+            self.session_active = False
+            return {"message": message, "timeout_count": self.timeout_count, "should_pause": True}
         elif self.timeout_count == 2:
-            message = "Take your time."
+            clue = self.get_current_clue()
+            message = f"Take your time. {clue}"
         else:
-            message = "Still thinking?"
+            clue = self.get_current_clue()
+            message = f"Still thinking? {clue}"
 
         self.state.last_message = message
-        return {"message": message, "timeout_count": self.timeout_count}
+        return {"message": message, "timeout_count": self.timeout_count, "should_retry": True}
 
     def reset_timeout(self) -> None:
         """Reset timeout counter."""

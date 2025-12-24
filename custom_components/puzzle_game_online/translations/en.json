@@ -3,17 +3,30 @@
     "step": {
       "user": {
         "title": "Set Up Puzzle Game Online",
-        "description": "Enter your display name to register with the puzzle game server at {api_url}.",
+        "description": "Register with the puzzle game server at {api_url}.",
         "data": {
-          "display_name": "Display Name"
+          "username": "Username",
+          "email": "Email",
+          "display_name": "Display Name (optional)"
         },
         "data_description": {
-          "display_name": "Your name as shown on leaderboards"
+          "username": "Unique username (3-30 characters, letters, numbers, underscore)",
+          "email": "Your email address",
+          "display_name": "Name shown on leaderboards (defaults to username)"
         }
       }
     },
     "error": {
       "cannot_connect": "Failed to connect to the puzzle game server",
+      "username_required": "Username is required",
+      "username_too_short": "Username must be at least 3 characters",
+      "username_too_long": "Username must be 30 characters or less",
+      "username_invalid_chars": "Username can only contain letters, numbers, and underscores",
+      "username_taken": "This username is already registered",
+      "email_required": "Email is required",
+      "email_invalid": "Please enter a valid email address",
+      "email_taken": "This email is already registered",
+      "already_registered": "This account is already registered",
       "display_name_required": "Display name is required"
     },
     "abort": {
@@ -24,7 +37,7 @@
     "step": {
       "init": {
         "title": "Puzzle Game Online Settings",
-        "description": "Update your settings.",
+        "description": "Update your display name.",
         "data": {
           "display_name": "Display Name"
         }
