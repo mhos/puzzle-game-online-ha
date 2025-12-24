@@ -39,9 +39,32 @@ class PuzzleGameOnlinePanel extends HTMLElement {
     _startPolling() {
         this._pollInterval = setInterval(() => {
             if (this._activeTab === 'game') {
-                this.render();
+                // Don't re-render if user is typing in the input
+                // Check shadow DOM's active element
+                const activeEl = this.shadowRoot.activeElement;
+                const answerInput = this.shadowRoot.getElementById('answerInput');
+                if (answerInput && activeEl === answerInput) {
+                    // Just update the game state display without full re-render
+                    this._updateGameDisplay();
+                } else {
+                    this.render();
+                }
             }
         }, 2000);
+    }
+
+    _updateGameDisplay() {
+        // Lightweight update of just game stats without re-rendering input
+        const state = this._getGameState();
+        if (!state) return;
+
+        const scoreEl = this.shadowRoot.querySelector('.stat-box .value');
+        const blanksEl = this.shadowRoot.querySelector('.blanks');
+        const clueEl = this.shadowRoot.querySelector('.clue');
+        const messageEl = this.shadowRoot.querySelector('.message');
+
+        if (blanksEl) blanksEl.textContent = state.blanks || '_ _ _ _ _';
+        if (clueEl) clueEl.textContent = state.clue || 'Loading...';
     }
 
     _stopPolling() {

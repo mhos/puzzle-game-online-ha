@@ -107,7 +107,7 @@ action:
                 continue_on_error: true
                 data:
                   device: "{{ view_assist_device }}"
-                  path: "/puzzle-game-online"
+                  path: "/puzzle_game_online"
                   revert_timeout: 0
               - service: view_assist.set_state
                 continue_on_error: true
@@ -174,7 +174,7 @@ action:
                 continue_on_error: true
                 data:
                   device: "{{ view_assist_device }}"
-                  path: "/puzzle-game-online"
+                  path: "/puzzle_game_online"
                   revert_timeout: 0
               - service: view_assist.set_state
                 continue_on_error: true
@@ -237,7 +237,7 @@ action:
                 continue_on_error: true
                 data:
                   device: "{{ view_assist_device }}"
-                  path: "/puzzle-game-online"
+                  path: "/puzzle_game_online"
                   revert_timeout: 0
               - service: view_assist.set_state
                 continue_on_error: true
