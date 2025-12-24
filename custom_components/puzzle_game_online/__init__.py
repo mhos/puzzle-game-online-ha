@@ -9,7 +9,7 @@ import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
-from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
 from homeassistant.helpers import config_validation as cv
 from homeassistant.components import frontend
 from homeassistant.components.http import StaticPathConfig
@@ -134,11 +134,12 @@ async def _async_setup_services(
 ) -> None:
     """Set up services."""
 
-    async def handle_start_game(call: ServiceCall) -> None:
+    async def handle_start_game(call: ServiceCall) -> dict[str, Any]:
         """Handle start game service."""
         is_bonus = call.data.get("bonus", False)
         result = await coordinator.async_start_game(is_bonus)
         _fire_result_event(hass, "game_started", result)
+        return result
 
     async def handle_submit_answer(call: ServiceCall) -> None:
         """Handle submit answer service."""
@@ -196,10 +197,11 @@ async def _async_setup_services(
             view_assist_device=call.data.get("view_assist_device"),
         )
 
-    async def handle_listening_timeout(call: ServiceCall) -> None:
+    async def handle_listening_timeout(call: ServiceCall) -> dict[str, Any]:
         """Handle listening timeout service."""
         result = coordinator.handle_timeout()
         _fire_result_event(hass, "timeout", result)
+        return result
 
     async def handle_reset_timeout(call: ServiceCall) -> None:
         """Handle reset timeout service."""
@@ -209,6 +211,7 @@ async def _async_setup_services(
     hass.services.async_register(
         DOMAIN, SERVICE_START_GAME, handle_start_game,
         schema=vol.Schema({vol.Optional("bonus", default=False): cv.boolean}),
+        supports_response=SupportsResponse.OPTIONAL,
     )
 
     hass.services.async_register(
@@ -261,6 +264,7 @@ async def _async_setup_services(
 
     hass.services.async_register(
         DOMAIN, SERVICE_LISTENING_TIMEOUT, handle_listening_timeout,
+        supports_response=SupportsResponse.OPTIONAL,
     )
 
     hass.services.async_register(
