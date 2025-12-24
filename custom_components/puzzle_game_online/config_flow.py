@@ -8,7 +8,7 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant import config_entries
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
 
 from .const import (
@@ -50,6 +50,15 @@ def validate_email(email: str) -> str | None:
     return None
 
 
+def validate_api_key(api_key: str) -> str | None:
+    """Validate API key format. Returns error key or None if valid."""
+    if not api_key:
+        return "api_key_required"
+    if not api_key.startswith("pzl_"):
+        return "api_key_invalid"
+    return None
+
+
 class PuzzleGameOnlineConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Puzzle Game Online."""
 
@@ -60,6 +69,8 @@ class PuzzleGameOnlineConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._api_key: str | None = None
         self._user_id: str | None = None
         self._username: str | None = None
+        self._email: str | None = None
+        self._display_name: str | None = None
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -90,6 +101,11 @@ class PuzzleGameOnlineConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 display_name = username
 
             if not errors:
+                # Store for potential use in recovery step
+                self._username = username
+                self._email = email
+                self._display_name = display_name
+
                 # Register device with API
                 api = PuzzleGameAPI()
                 try:
@@ -128,14 +144,10 @@ class PuzzleGameOnlineConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     error_msg = str(err)
                     _LOGGER.error("Failed to register device: %s", error_msg)
 
-                    # Parse specific API errors
+                    # Check for "already registered" error - offer recovery
                     if "already registered" in error_msg.lower():
-                        if "username" in error_msg.lower():
-                            errors[CONF_USERNAME] = "username_taken"
-                        elif "email" in error_msg.lower():
-                            errors[CONF_EMAIL] = "email_taken"
-                        else:
-                            errors["base"] = "already_registered"
+                        await api.close()
+                        return await self.async_step_recover()
                     else:
                         errors["base"] = "cannot_connect"
                 except Exception as err:
@@ -154,6 +166,57 @@ class PuzzleGameOnlineConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors=errors,
             description_placeholders={
                 "api_url": "puzzleapi.techshit.xyz",
+            },
+        )
+
+    async def async_step_recover(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Handle recovery step - enter existing API key."""
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            api_key = user_input.get(CONF_API_KEY, "").strip()
+
+            # Validate API key format
+            api_key_error = validate_api_key(api_key)
+            if api_key_error:
+                errors[CONF_API_KEY] = api_key_error
+            else:
+                # Try to validate the API key
+                api = PuzzleGameAPI(api_key)
+                try:
+                    stats = await api.get_my_stats()
+                    await api.close()
+
+                    # API key is valid, create the entry
+                    return self.async_create_entry(
+                        title=f"Puzzle Game ({self._display_name or self._username})",
+                        data={
+                            CONF_API_KEY: api_key,
+                            CONF_USER_ID: "",  # We don't have this from recovery
+                            CONF_USERNAME: self._username or "",
+                            CONF_EMAIL: self._email or "",
+                            CONF_DISPLAY_NAME: self._display_name or self._username or "",
+                        },
+                    )
+                except PuzzleGameAPIError as err:
+                    _LOGGER.error("Invalid API key: %s", err)
+                    errors[CONF_API_KEY] = "api_key_invalid"
+                except Exception as err:
+                    _LOGGER.exception("Error validating API key: %s", err)
+                    errors["base"] = "cannot_connect"
+                finally:
+                    await api.close()
+
+        return self.async_show_form(
+            step_id="recover",
+            data_schema=vol.Schema({
+                vol.Required(CONF_API_KEY): str,
+            }),
+            errors=errors,
+            description_placeholders={
+                "username": self._username or "your account",
             },
         )
 
@@ -209,7 +272,9 @@ class PuzzleGameOnlineOptionsFlow(config_entries.OptionsFlow):
                     await api.close()
 
         current_display_name = self.config_entry.data.get(CONF_DISPLAY_NAME, "")
+        current_api_key = self.config_entry.data.get(CONF_API_KEY, "")
 
+        # Show current API key (masked) and display name
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema({
@@ -219,4 +284,7 @@ class PuzzleGameOnlineOptionsFlow(config_entries.OptionsFlow):
                 ): str,
             }),
             errors=errors,
+            description_placeholders={
+                "api_key": current_api_key,
+            },
         )

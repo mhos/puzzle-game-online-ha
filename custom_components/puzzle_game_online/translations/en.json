@@ -14,6 +14,16 @@
           "email": "Your email address",
           "display_name": "Name shown on leaderboards (defaults to username)"
         }
+      },
+      "recover": {
+        "title": "Account Already Exists",
+        "description": "The username '{username}' is already registered. Enter your existing API key to reconnect. You can find your API key in your previous Home Assistant installation or contact the admin.",
+        "data": {
+          "api_key": "API Key"
+        },
+        "data_description": {
+          "api_key": "Your existing API key (starts with pzl_)"
+        }
       }
     },
     "error": {
@@ -27,7 +37,9 @@
       "email_invalid": "Please enter a valid email address",
       "email_taken": "This email is already registered",
       "already_registered": "This account is already registered",
-      "display_name_required": "Display name is required"
+      "display_name_required": "Display name is required",
+      "api_key_required": "API key is required",
+      "api_key_invalid": "Invalid API key. It should start with pzl_"
     },
     "abort": {
       "already_configured": "Puzzle Game Online is already configured"
@@ -37,7 +49,7 @@
     "step": {
       "init": {
         "title": "Puzzle Game Online Settings",
-        "description": "Update your display name.",
+        "description": "Update your display name.\n\n**Your API Key:** `{api_key}`\n\nSave this key! You'll need it if you reinstall the integration.",
         "data": {
           "display_name": "Display Name"
         }
