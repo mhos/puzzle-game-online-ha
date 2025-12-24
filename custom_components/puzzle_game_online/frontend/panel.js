@@ -86,11 +86,17 @@ class PuzzleGameOnlinePanel extends HTMLElement {
             const result = await this._hass.callWS({
                 type: 'puzzle_game_online/leaderboard',
                 period: this._leaderboardPeriod
-            }).catch(() => null);
-            if (result) this._leaderboard = result;
+            }).catch((e) => {
+                console.error('Leaderboard WS error:', e);
+                return null;
+            });
+            if (result) {
+                this._leaderboard = result;
+            }
         } catch (e) {
             console.error('Failed to load leaderboard:', e);
         }
+        this.render();
     }
 
     _getGameState() {
@@ -102,17 +108,23 @@ class PuzzleGameOnlinePanel extends HTMLElement {
     _switchTab(tab) {
         this._activeTab = tab;
         if (tab === 'leaderboard') {
+            this._leaderboard = null; // Show loading state
+            this.render();
             this._loadLeaderboard();
         } else if (tab === 'stats') {
+            this._stats = null; // Show loading state
+            this.render();
             this._loadData();
+        } else {
+            this.render();
         }
-        this.render();
     }
 
     _switchLeaderboardPeriod(period) {
         this._leaderboardPeriod = period;
-        this._loadLeaderboard();
+        this._leaderboard = null; // Show loading state
         this.render();
+        this._loadLeaderboard();
     }
 
     _toggleHelp() {

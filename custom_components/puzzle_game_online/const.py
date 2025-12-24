@@ -2,7 +2,7 @@
 from typing import Final
 
 DOMAIN: Final = "puzzle_game_online"
-VERSION: Final = "1.1.2"
+VERSION: Final = "1.1.3"
 
 # API Configuration
 API_BASE_URL: Final = "https://puzzleapi.techshit.xyz"
