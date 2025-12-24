@@ -126,10 +126,6 @@ class PuzzleGameAPI:
         self._api_key = result.get("api_key")
         return result
 
-    async def get_current_user(self) -> dict[str, Any]:
-        """Get the current authenticated user's info."""
-        return await self._request("GET", "/auth/me")
-
     # ==================== Puzzles ====================
 
     async def get_daily_puzzle(self, puzzle_date: str | None = None) -> dict[str, Any]:

@@ -51,9 +51,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Initialize API client
     api = PuzzleGameAPI(entry.data.get(CONF_API_KEY))
 
-    # Validate API connection
+    # Validate API connection by checking user stats (uses API key auth)
     try:
-        await api.get_current_user()
+        await api.get_my_stats()
     except Exception as err:
         _LOGGER.error("Failed to connect to API: %s", err)
         await api.close()
