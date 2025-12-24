@@ -686,6 +686,24 @@ class PuzzleGameOnlinePanel extends HTMLElement {
 
     _renderGame(state) {
         if (!state || !state.is_active) {
+            const dailyPlayed = this._stats && this._stats.daily_played_today;
+
+            if (dailyPlayed) {
+                return `
+                    <div class="no-game">
+                        <h2>✅ Daily Puzzle Complete!</h2>
+                        <p>
+                            You've already played today's puzzle.<br>
+                            Come back tomorrow for a new daily challenge!
+                        </p>
+                        <div class="voice-hint">
+                            <strong>🎤 Want to play more?</strong><br>
+                            Say <strong>"Play bonus game"</strong> to your Assist satellite for an extra puzzle!
+                        </div>
+                    </div>
+                `;
+            }
+
             return `
                 <div class="no-game">
                     <h2>🎯 Ready to Play?</h2>
