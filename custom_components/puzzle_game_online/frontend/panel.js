@@ -678,4 +678,7 @@ class PuzzleGameOnlinePanel extends HTMLElement {
     }
 }
 
-customElements.define('puzzle-game-online-panel', PuzzleGameOnlinePanel);
+// Only register if not already defined (prevents errors on hot reload)
+if (!customElements.get('puzzle-game-online-panel')) {
+    customElements.define('puzzle-game-online-panel', PuzzleGameOnlinePanel);
+}
