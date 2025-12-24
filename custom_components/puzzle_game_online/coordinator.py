@@ -44,17 +44,24 @@ class PuzzleGameCoordinator(DataUpdateCoordinator):
     def game_state(self) -> dict[str, Any]:
         """Return the current game state."""
         state = self.game_manager.state
+        reveals_remaining = state.reveals_available - state.reveals_used
+
+        # Get solved word displays
+        solved_words_display = []
+        for i in state.solved_words:
+            if i in state.word_displays:
+                solved_words_display.append(state.word_displays[i])
+
         return {
-            "game_id": state.game_id,
             "session_id": state.session_id,
             "puzzle_id": state.puzzle_id,
             "phase": state.phase,
             "word_number": state.current_word_index + 1 if state.phase == 1 else 6,
-            "score": state.score,
-            "reveals": state.reveals_remaining,
-            "blanks": self.game_manager.get_current_blanks() if state.phase == 1 else self.game_manager.get_theme_blanks(),
+            "score": state.final_score or 0,
+            "reveals": reveals_remaining,
+            "blanks": self.game_manager.get_current_blanks() if state.phase == 1 else "",
             "clue": self.game_manager.get_current_clue(),
-            "solved_words": [state.words[i] for i in state.solved_words] if state.words else [],
+            "solved_words": solved_words_display,
             "solved_word_indices": state.solved_words,
             "is_active": state.is_active,
             "last_message": state.last_message,
