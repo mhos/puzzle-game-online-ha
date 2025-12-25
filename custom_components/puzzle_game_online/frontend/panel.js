@@ -23,10 +23,7 @@ class PuzzleGameOnlinePanel extends HTMLElement {
 
     set hass(hass) {
         this._hass = hass;
-        // Don't re-render while help modal is open (preserves scroll position)
-        if (!this._helpVisible) {
-            this.render();
-        }
+        this.render();
     }
 
     set panel(panel) {
@@ -48,8 +45,7 @@ class PuzzleGameOnlinePanel extends HTMLElement {
 
     _startPolling() {
         this._pollInterval = setInterval(() => {
-            // Don't re-render while help modal is open (preserves scroll position)
-            if (this._activeTab === 'game' && !this._helpVisible) {
+            if (this._activeTab === 'game') {
                 this.render();
             }
         }, 2000);
@@ -139,6 +135,15 @@ class PuzzleGameOnlinePanel extends HTMLElement {
 
     render() {
         const state = this._getGameState();
+
+        // Preserve help modal scroll position before re-render
+        let helpScrollTop = 0;
+        if (this._helpVisible) {
+            const helpContent = this.shadowRoot.querySelector('.help-content');
+            if (helpContent) {
+                helpScrollTop = helpContent.scrollTop;
+            }
+        }
 
         this.shadowRoot.innerHTML = `
             <style>
@@ -703,6 +708,14 @@ class PuzzleGameOnlinePanel extends HTMLElement {
         if (helpModal) helpModal.addEventListener('click', (e) => {
             if (e.target.id === 'helpModal') this._toggleHelp();
         });
+
+        // Restore help modal scroll position after re-render
+        if (this._helpVisible && helpScrollTop > 0) {
+            const helpContent = this.shadowRoot.querySelector('.help-content');
+            if (helpContent) {
+                helpContent.scrollTop = helpScrollTop;
+            }
+        }
     }
 
     _renderGame(state) {
