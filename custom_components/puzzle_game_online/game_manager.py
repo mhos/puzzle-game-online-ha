@@ -157,6 +157,12 @@ class GameManager:
             self.state.solved_words = session_data.get("solved_words", [])
             self.state.theme_solved = session_data.get("theme_solved", False)
 
+            # Restore solved word displays from session (for continuing paused games)
+            solved_word_answers = session_data.get("solved_word_answers", {})
+            for word_idx_str, answer in solved_word_answers.items():
+                word_idx = int(word_idx_str)
+                self.state.word_displays[word_idx] = answer
+
             # Mark as active
             self.state.is_active = True
             self.state.started_at = datetime.now()
