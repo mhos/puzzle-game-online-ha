@@ -15,6 +15,9 @@ class PuzzleGameOnlinePanel extends HTMLElement {
         this._stats = null;
         this._leaderboard = null;
         this._userInfo = null;
+        this._gameHistory = null;
+        this._historyFilter = 'all';
+        this._historyExpanded = null;
         this._pollInterval = null;
         this._lastMessage = null;
         this._feedbackTimeout = null;
@@ -101,6 +104,23 @@ class PuzzleGameOnlinePanel extends HTMLElement {
         }
     }
 
+    async _loadGameHistory() {
+        if (!this._hass) return;
+
+        try {
+            const result = await this._hass.callWS({
+                type: 'puzzle_game_online/game_history',
+                limit: 20,
+                game_type: this._historyFilter === 'all' ? null : this._historyFilter
+            }).catch(() => null);
+            if (result) {
+                this._gameHistory = result;
+            }
+        } catch (e) {
+            console.error('Failed to load game history:', e);
+        }
+    }
+
     _getGameState() {
         if (!this._hass) return null;
         const sensor = this._hass.states['sensor.puzzle_game_online'];
@@ -114,9 +134,23 @@ class PuzzleGameOnlinePanel extends HTMLElement {
             this._loadLeaderboard().then(() => this._renderTabContent());
         } else if (tab === 'stats') {
             this._stats = null;
-            this._loadData().then(() => this._renderTabContent());
+            this._gameHistory = null;
+            Promise.all([this._loadData(), this._loadGameHistory()]).then(() => this._renderTabContent());
         }
         this._updateTabButtons();
+        this._renderTabContent();
+    }
+
+    _switchHistoryFilter(filter) {
+        this._historyFilter = filter;
+        this._gameHistory = null;
+        this._historyExpanded = null;
+        this._renderTabContent();
+        this._loadGameHistory().then(() => this._renderTabContent());
+    }
+
+    _toggleGameDetails(gameId) {
+        this._historyExpanded = this._historyExpanded === gameId ? null : gameId;
         this._renderTabContent();
     }
 
@@ -572,6 +606,138 @@ class PuzzleGameOnlinePanel extends HTMLElement {
                     opacity: 0.7;
                 }
 
+                /* Stats Section Styles */
+                .stats-section {
+                    margin-bottom: 15px;
+                }
+
+                .section-title {
+                    font-size: 1em;
+                    font-weight: bold;
+                    margin-bottom: 8px;
+                    opacity: 0.9;
+                }
+
+                .history-filters {
+                    display: flex;
+                    gap: 8px;
+                    margin-bottom: 10px;
+                    justify-content: center;
+                }
+
+                .history-filter-btn {
+                    padding: 6px 14px;
+                    background: rgba(255, 255, 255, 0.2);
+                    border: none;
+                    border-radius: 8px;
+                    color: rgba(255, 255, 255, 0.8);
+                    font-size: 0.85rem;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                }
+
+                .history-filter-btn.active {
+                    background: rgba(255, 255, 255, 0.4);
+                    color: white;
+                    font-weight: bold;
+                }
+
+                .game-history {
+                    max-height: 300px;
+                    overflow-y: auto;
+                }
+
+                .game-row {
+                    background: rgba(255, 255, 255, 0.1);
+                    border-radius: 8px;
+                    margin-bottom: 6px;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                }
+
+                .game-row:hover {
+                    background: rgba(255, 255, 255, 0.2);
+                }
+
+                .game-row.expanded {
+                    background: rgba(255, 255, 255, 0.2);
+                }
+
+                .game-summary {
+                    display: flex;
+                    align-items: center;
+                    padding: 10px 12px;
+                    gap: 10px;
+                }
+
+                .game-type {
+                    font-size: 1.1em;
+                }
+
+                .game-date {
+                    flex: 1;
+                    font-size: 0.9em;
+                }
+
+                .game-score {
+                    font-weight: bold;
+                    color: #ffd700;
+                }
+
+                .game-theme {
+                    width: 24px;
+                    height: 24px;
+                    border-radius: 50%;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 0.9em;
+                    background: rgba(255, 255, 255, 0.2);
+                }
+
+                .game-theme.correct {
+                    background: rgba(76, 175, 80, 0.8);
+                }
+
+                .game-theme.wrong {
+                    background: rgba(244, 67, 54, 0.8);
+                }
+
+                .game-details {
+                    padding: 0 12px 12px 12px;
+                    border-top: 1px solid rgba(255, 255, 255, 0.1);
+                    margin-top: 2px;
+                }
+
+                .detail-row {
+                    display: flex;
+                    justify-content: space-between;
+                    padding: 4px 0;
+                    font-size: 0.85em;
+                }
+
+                .detail-label {
+                    opacity: 0.8;
+                }
+
+                .detail-value {
+                    font-weight: 500;
+                }
+
+                .detail-value.positive {
+                    color: #4caf50;
+                }
+
+                .detail-value.negative {
+                    color: #f44336;
+                }
+
+                .no-history {
+                    text-align: center;
+                    padding: 20px;
+                    opacity: 0.7;
+                }
+
                 /* Small screens - Echo Show, Lenovo Thinksmart */
                 @media (max-width: 1024px) and (max-height: 600px) {
                     :host {
@@ -782,6 +948,13 @@ class PuzzleGameOnlinePanel extends HTMLElement {
             });
         } else if (this._activeTab === 'stats') {
             statsTab.innerHTML = this._renderStats();
+            // Re-attach history filter and game detail listeners
+            statsTab.querySelectorAll('.history-filter-btn').forEach(btn => {
+                btn.addEventListener('click', () => this._switchHistoryFilter(btn.dataset.filter));
+            });
+            statsTab.querySelectorAll('.game-row').forEach(row => {
+                row.addEventListener('click', () => this._toggleGameDetails(row.dataset.gameid));
+            });
         }
     }
 
@@ -935,34 +1108,136 @@ class PuzzleGameOnlinePanel extends HTMLElement {
             return '<div class="loading">Loading...</div>';
         }
 
+        const s = this._stats;
+        const avgScore = typeof s.avg_score === 'number' ? Math.round(s.avg_score) : 0;
+        const bonusAvg = typeof s.bonus_avg_score === 'number' ? Math.round(s.bonus_avg_score) : 0;
+
+        let historyHtml = '<div class="loading">Loading history...</div>';
+        if (this._gameHistory && this._gameHistory.games) {
+            if (this._gameHistory.games.length === 0) {
+                historyHtml = '<div class="no-history">No games found</div>';
+            } else {
+                historyHtml = this._gameHistory.games.map(game => {
+                    const isExpanded = this._historyExpanded === game.id;
+                    const dateStr = game.puzzle_date || 'Bonus';
+                    const themeIcon = game.theme_correct === true ? '✓' : game.theme_correct === false ? '✗' : '-';
+                    const themeClass = game.theme_correct === true ? 'correct' : game.theme_correct === false ? 'wrong' : '';
+                    const typeLabel = game.is_bonus ? '🎁' : '📅';
+
+                    return `
+                        <div class="game-row ${isExpanded ? 'expanded' : ''}" data-gameid="${game.id}">
+                            <div class="game-summary">
+                                <span class="game-type">${typeLabel}</span>
+                                <span class="game-date">${dateStr}</span>
+                                <span class="game-score">${game.final_score} pts</span>
+                                <span class="game-theme ${themeClass}">${themeIcon}</span>
+                            </div>
+                            ${isExpanded ? `
+                                <div class="game-details">
+                                    <div class="detail-row">
+                                        <span class="detail-label">Theme:</span>
+                                        <span class="detail-value">${game.theme || 'Unknown'}</span>
+                                    </div>
+                                    <div class="detail-row">
+                                        <span class="detail-label">Words:</span>
+                                        <span class="detail-value">${game.words_solved}/5</span>
+                                    </div>
+                                    <div class="detail-row">
+                                        <span class="detail-label">Word Score:</span>
+                                        <span class="detail-value">${game.word_score || 0}</span>
+                                    </div>
+                                    <div class="detail-row">
+                                        <span class="detail-label">Reveals Used:</span>
+                                        <span class="detail-value">${game.reveals_used || 0}</span>
+                                    </div>
+                                    <div class="detail-row">
+                                        <span class="detail-label">Reveals Bonus:</span>
+                                        <span class="detail-value">+${game.reveals_bonus || 0}</span>
+                                    </div>
+                                    <div class="detail-row">
+                                        <span class="detail-label">Time:</span>
+                                        <span class="detail-value">${this._formatTime(game.time_seconds)}</span>
+                                    </div>
+                                    <div class="detail-row">
+                                        <span class="detail-label">Time Bonus:</span>
+                                        <span class="detail-value">+${game.time_bonus || 0}</span>
+                                    </div>
+                                    <div class="detail-row">
+                                        <span class="detail-label">Wager:</span>
+                                        <span class="detail-value ${game.wager_result > 0 ? 'positive' : game.wager_result < 0 ? 'negative' : ''}">${game.wager_amount || 0} → ${game.wager_result > 0 ? '+' : ''}${game.wager_result || 0}</span>
+                                    </div>
+                                </div>
+                            ` : ''}
+                        </div>
+                    `;
+                }).join('');
+            }
+        }
+
         return `
-            <div class="stats-grid">
-                <div class="stats-card">
-                    <div class="value">${this._stats.games_played || 0}</div>
-                    <div class="label">Games</div>
+            <div class="stats-section">
+                <div class="section-title">📅 Daily Puzzles</div>
+                <div class="stats-grid">
+                    <div class="stats-card">
+                        <div class="value">${s.games_played || 0}</div>
+                        <div class="label">Games</div>
+                    </div>
+                    <div class="stats-card">
+                        <div class="value">${s.total_score || 0}</div>
+                        <div class="label">Total</div>
+                    </div>
+                    <div class="stats-card">
+                        <div class="value">${avgScore}</div>
+                        <div class="label">Avg</div>
+                    </div>
+                    <div class="stats-card">
+                        <div class="value">${s.current_streak || 0}</div>
+                        <div class="label">Streak</div>
+                    </div>
                 </div>
-                <div class="stats-card">
-                    <div class="value">${this._stats.total_score || 0}</div>
-                    <div class="label">Total Score</div>
+            </div>
+
+            <div class="stats-section">
+                <div class="section-title">🎁 Bonus Games</div>
+                <div class="stats-grid">
+                    <div class="stats-card">
+                        <div class="value">${s.bonus_games_played || 0}</div>
+                        <div class="label">Games</div>
+                    </div>
+                    <div class="stats-card">
+                        <div class="value">${s.bonus_total_score || 0}</div>
+                        <div class="label">Total</div>
+                    </div>
+                    <div class="stats-card">
+                        <div class="value">${bonusAvg}</div>
+                        <div class="label">Avg</div>
+                    </div>
+                    <div class="stats-card">
+                        <div class="value">${s.bonus_best_score || 0}</div>
+                        <div class="label">Best</div>
+                    </div>
                 </div>
-                <div class="stats-card">
-                    <div class="value">${this._stats.avg_score || 0}</div>
-                    <div class="label">Avg Score</div>
+            </div>
+
+            <div class="stats-section">
+                <div class="section-title">📜 Game History</div>
+                <div class="history-filters">
+                    <button class="history-filter-btn ${this._historyFilter === 'all' ? 'active' : ''}" data-filter="all">All</button>
+                    <button class="history-filter-btn ${this._historyFilter === 'daily' ? 'active' : ''}" data-filter="daily">Daily</button>
+                    <button class="history-filter-btn ${this._historyFilter === 'bonus' ? 'active' : ''}" data-filter="bonus">Bonus</button>
                 </div>
-                <div class="stats-card">
-                    <div class="value">${this._stats.best_score || 0}</div>
-                    <div class="label">Best</div>
-                </div>
-                <div class="stats-card">
-                    <div class="value">${this._stats.current_streak || 0}</div>
-                    <div class="label">Streak</div>
-                </div>
-                <div class="stats-card">
-                    <div class="value">${this._stats.perfect_games || 0}</div>
-                    <div class="label">Perfect</div>
+                <div class="game-history">
+                    ${historyHtml}
                 </div>
             </div>
         `;
+    }
+
+    _formatTime(seconds) {
+        if (!seconds) return '0:00';
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
     }
 }
 

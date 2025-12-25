@@ -325,6 +325,27 @@ class PuzzleGameAPI:
             "GET", "/user/history", params={"limit": limit, "offset": offset}
         )
 
+    async def get_game_history(
+        self, limit: int = 20, game_type: str | None = None
+    ) -> dict[str, Any]:
+        """
+        Get the current user's game history with full details.
+
+        Args:
+            limit: Maximum games to return
+            game_type: Filter by type: 'daily', 'bonus', or None for all
+
+        Returns:
+            {games: [{id, puzzle_date, is_bonus, theme, final_score, word_score,
+                      reveals_bonus, time_bonus, words_solved, reveals_used, time_seconds,
+                      theme_correct, wager_amount, wager_result, completed_at}],
+             total, limit, offset, game_type}
+        """
+        params = {"limit": limit}
+        if game_type:
+            params["game_type"] = game_type
+        return await self._request("GET", "/user/history", params=params)
+
     async def update_profile(
         self,
         display_name: str | None = None,

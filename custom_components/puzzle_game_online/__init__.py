@@ -384,8 +384,40 @@ def _async_register_websocket_commands(hass: HomeAssistant) -> None:
             _LOGGER.error("WS leaderboard error: %s", err)
             connection.send_error(msg["id"], "error", str(err))
 
+    @websocket_api.websocket_command({
+        vol.Required("type"): f"{DOMAIN}/game_history",
+        vol.Optional("limit", default=20): int,
+        vol.Optional("game_type"): vol.Any(str, None),
+    })
+    @websocket_api.async_response
+    async def ws_get_game_history(
+        hass: HomeAssistant,
+        connection: websocket_api.ActiveConnection,
+        msg: dict[str, Any],
+    ) -> None:
+        """Get user's game history."""
+        _LOGGER.debug("WS game_history called with msg: %s", msg)
+        try:
+            limit = msg.get("limit", 20)
+            game_type = msg.get("game_type")
+            for entry_id, entry_data in hass.data.get(DOMAIN, {}).items():
+                if entry_id.startswith("_"):
+                    continue
+                api = entry_data.get("api")
+                if api:
+                    result = await api.get_game_history(limit=limit, game_type=game_type)
+                    _LOGGER.debug("WS game_history result: %s", result)
+                    connection.send_result(msg["id"], result)
+                    return
+            _LOGGER.warning("WS game_history: No API configured")
+            connection.send_error(msg["id"], "not_found", "No API configured")
+        except Exception as err:
+            _LOGGER.error("WS game_history error: %s", err)
+            connection.send_error(msg["id"], "error", str(err))
+
     # Register the WebSocket commands
     websocket_api.async_register_command(hass, ws_get_user_info)
     websocket_api.async_register_command(hass, ws_get_stats)
     websocket_api.async_register_command(hass, ws_get_leaderboard)
+    websocket_api.async_register_command(hass, ws_get_game_history)
     _LOGGER.info("WebSocket commands registered for panel")
