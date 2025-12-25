@@ -384,11 +384,12 @@ class GameManager:
             for i in sorted(self.state.solved_words)
         ]
 
+        score = self.state.current_score
         message = (
-            f"All words solved: {', '.join(solved_word_names)}. "
-            f"Your current score is {self.state.current_score} points. "
-            "Now make your wager! You can risk any amount up to your full score on guessing the theme. "
-            "Say 'wager 50', 'no wager', or 'all in' to risk it all!"
+            f"All 5 words solved! Your score so far is {score} points. "
+            f"Time to make your wager! You can bet anywhere from 0 to {score} points on guessing the theme. "
+            f"If you guess correctly, you win your wager. If you're wrong, you lose it. "
+            f"Say 'wager' followed by a number, 'no wager' to play it safe, or 'all in' to risk all {score} points!"
         )
         self.state.last_message = message
 
@@ -424,20 +425,20 @@ class GameManager:
         ]
 
         if points == 0:
-            wager_msg = "No wager set."
+            wager_msg = "No wager. You'll keep your current score no matter what."
         elif points == max_wager:
-            wager_msg = f"Going all in! Wagering all {points} points!"
+            wager_msg = f"All in with {points} points! Get it right to double up, wrong and you lose it all!"
         else:
-            wager_msg = f"Wagering {points} points."
+            wager_msg = f"Wagering {points} points. Get it right to win {points} more, wrong and you lose {points}."
 
         # Build theme hint
         theme_hint = ""
         if self.state.theme_word_count > 1:
-            theme_hint = f" The theme is {self.state.theme_word_count} words with {self.state.theme_length} letters."
+            theme_hint = f" The theme is {self.state.theme_word_count} words, {self.state.theme_length} letters total."
         else:
-            theme_hint = f" The theme has {self.state.theme_length} letters."
+            theme_hint = f" The theme is {self.state.theme_length} letters."
 
-        message = f"{wager_msg}{theme_hint} Now guess the theme!"
+        message = f"{wager_msg}{theme_hint} What's the theme?"
         self.state.last_message = message
 
         return {

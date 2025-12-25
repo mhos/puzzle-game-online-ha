@@ -809,9 +809,10 @@ class PuzzleGameOnlinePanel extends HTMLElement {
                 </div>
                 <div class="word-blanks">${state.blanks || '_ _ _ _ _'}</div>
                 ${isWagerPhase ? `
-                    <div class="clue">Your score: ${state.current_score || '?'} points. Risk it all or play safe!</div>
+                    <div class="clue">Your score: <strong>${state.current_score || '?'}</strong> points. Wager 0 to ${state.current_score || '?'} on the theme!</div>
                     <div class="voice-hint">
-                        Say: <strong>"wager 50"</strong>, <strong>"no wager"</strong>, or <strong>"all in"</strong> to risk everything!
+                        Say: <strong>"wager [amount]"</strong>, <strong>"no wager"</strong>, or <strong>"all in"</strong><br>
+                        Win = gain your wager | Lose = lose your wager
                     </div>
                 ` : `<div class="clue">${state.clue || 'Loading...'}</div>`}
             </div>
