@@ -3,6 +3,14 @@
     "step": {
       "user": {
         "title": "Set Up Puzzle Game Online",
+        "description": "Choose how you want to set up the integration.",
+        "menu_options": {
+          "register": "Create a new account",
+          "existing": "Use an existing API key"
+        }
+      },
+      "register": {
+        "title": "Create New Account",
         "description": "Register with the puzzle game server at {api_url}.",
         "data": {
           "username": "Username",
@@ -13,6 +21,16 @@
           "username": "Unique username (3-30 characters, letters, numbers, underscore)",
           "email": "Your email address",
           "display_name": "Name shown on leaderboards (defaults to username)"
+        }
+      },
+      "existing": {
+        "title": "Use Existing API Key",
+        "description": "Enter your existing API key to reconnect your account. You can find your API key in your previous Home Assistant installation or by contacting the admin.",
+        "data": {
+          "api_key": "API Key"
+        },
+        "data_description": {
+          "api_key": "Your existing API key (starts with pzl_)"
         }
       },
       "recover": {

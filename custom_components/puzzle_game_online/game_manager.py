@@ -36,6 +36,7 @@ class GameState:
 
         # Wager (points-based, not percentage)
         self.wager_amount: int = 0  # Points wagered
+        self.current_score: int = 0  # Estimated score before wager (for max wager calculation)
 
         # Tracking (mirrored from server)
         self.solved_words: list[int] = []  # Indices of solved words
@@ -79,6 +80,7 @@ class GameState:
             "final_score": self.final_score,
             "last_message": self.last_message,
             "wager_amount": self.wager_amount,
+            "current_score": self.current_score,
             "theme_display": self.theme_display,
             "theme_length": self.theme_length,
             "theme_word_count": self.theme_word_count,
@@ -346,10 +348,35 @@ class GameManager:
             _LOGGER.error("Failed to check theme: %s", err)
             return {"success": False, "message": f"Error checking theme: {err}"}
 
+    def _calculate_current_score(self) -> int:
+        """Calculate estimated score based on words solved and reveals used."""
+        # Scoring per word based on reveals used:
+        # 0 reveals = 20 points, 1 reveal = 15, 2 reveals = 10, 3+ reveals = 5
+        score = 0
+        for word_idx in self.state.solved_words:
+            reveals_used = len(self.state.revealed_letters.get(word_idx, []))
+            if reveals_used == 0:
+                score += 20
+            elif reveals_used == 1:
+                score += 15
+            elif reveals_used == 2:
+                score += 10
+            else:
+                score += 5
+
+        # Add reveal bonus (5 points per unused reveal)
+        unused_reveals = self.state.reveals_available - self.state.reveals_used
+        score += unused_reveals * 5
+
+        return score
+
     async def _transition_to_phase2(self) -> dict[str, Any]:
         """Transition to wager phase after all words solved."""
         self.state.phase = 2
         self.state.current_word_index = -1
+
+        # Calculate current score for wager max
+        self.state.current_score = self._calculate_current_score()
 
         # Get the solved words for display
         solved_word_names = [
@@ -359,8 +386,9 @@ class GameManager:
 
         message = (
             f"All words solved: {', '.join(solved_word_names)}. "
-            "Now make your wager! You can risk 0 to 100 percent of your score on guessing the theme. "
-            "Say 'wager 50 percent', 'no wager', or 'all in'."
+            f"Your current score is {self.state.current_score} points. "
+            "Now make your wager! You can risk any amount up to your full score on guessing the theme. "
+            "Say 'wager 50', 'no wager', or 'all in' to risk it all!"
         )
         self.state.last_message = message
 
@@ -370,6 +398,7 @@ class GameManager:
             "message": message,
             "phase": 2,
             "solved_words": solved_word_names,
+            "current_score": self.state.current_score,
         }
 
     def set_wager(self, points: int) -> dict[str, Any]:
@@ -380,8 +409,9 @@ class GameManager:
         if self.state.phase != 2:
             return {"success": False, "message": "Can only set wager after solving all words"}
 
-        # Clamp to valid range (0 to 50 points max)
-        points = max(0, min(50, points))
+        # Clamp to valid range (0 to current score)
+        max_wager = self.state.current_score
+        points = max(0, min(max_wager, points))
         self.state.wager_amount = points
 
         # Transition to theme phase
@@ -395,6 +425,8 @@ class GameManager:
 
         if points == 0:
             wager_msg = "No wager set."
+        elif points == max_wager:
+            wager_msg = f"Going all in! Wagering all {points} points!"
         else:
             wager_msg = f"Wagering {points} points."
 
@@ -413,6 +445,7 @@ class GameManager:
             "message": message,
             "phase": 3,
             "wager_amount": points,
+            "max_wager": max_wager,
         }
 
     async def _end_game(
@@ -436,9 +469,12 @@ class GameManager:
             word_results.append({"solved": solved, "reveals_used": reveals_used})
 
         # Submit score to API
-        # Note: API uses wager_percent but we convert our points to a percentage
-        # For now we'll use a simple mapping: each point = 2% (50 points = 100%)
-        wager_percent = min(100, self.state.wager_amount * 2)
+        # API uses wager_percent - convert our points to percentage of current score
+        if self.state.current_score > 0:
+            wager_percent = int((self.state.wager_amount / self.state.current_score) * 100)
+        else:
+            wager_percent = 0
+        wager_percent = min(100, wager_percent)
 
         try:
             score_result = await self._api.submit_score(

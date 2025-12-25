@@ -198,6 +198,9 @@ async def _async_setup_services(
     async def handle_set_wager(call: ServiceCall) -> None:
         """Handle set wager service."""
         points = call.data.get("points", 0)
+        # -1 means "all in" - wager the full score
+        if points == -1:
+            points = 9999  # Will be clamped to current_score in game_manager
         result = coordinator.set_wager(points)
         _fire_result_event(hass, "wager_set", result)
 
@@ -267,7 +270,7 @@ async def _async_setup_services(
 
     hass.services.async_register(
         DOMAIN, SERVICE_SET_WAGER, handle_set_wager,
-        schema=vol.Schema({vol.Required("points"): vol.All(vol.Coerce(int), vol.Range(min=0, max=50))}),
+        schema=vol.Schema({vol.Required("points"): vol.All(vol.Coerce(int), vol.Range(min=-1))}),
     )
 
     hass.services.async_register(

@@ -633,6 +633,22 @@ class PuzzleGameOnlinePanel extends HTMLElement {
                     </div>
 
                     <div class="help-section">
+                        <h3>Wager Phase</h3>
+                        <div class="help-command">
+                            <strong>"Wager 50" or "Wager 20 points"</strong>
+                            <span>Risk points on the theme</span>
+                        </div>
+                        <div class="help-command">
+                            <strong>"All in"</strong>
+                            <span>Risk your entire score!</span>
+                        </div>
+                        <div class="help-command">
+                            <strong>"No wager"</strong>
+                            <span>Play it safe, no risk</span>
+                        </div>
+                    </div>
+
+                    <div class="help-section">
                         <h3>Ending</h3>
                         <div class="help-command">
                             <strong>"Pause" or "Stop"</strong>
@@ -793,9 +809,9 @@ class PuzzleGameOnlinePanel extends HTMLElement {
                 </div>
                 <div class="word-blanks">${state.blanks || '_ _ _ _ _'}</div>
                 ${isWagerPhase ? `
-                    <div class="clue">Wager points on guessing the theme correctly!</div>
+                    <div class="clue">Your score: ${state.current_score || '?'} points. Risk it all or play safe!</div>
                     <div class="voice-hint">
-                        Say: <strong>"wager 20 points"</strong>, <strong>"no wager"</strong>, or <strong>"all in"</strong>
+                        Say: <strong>"wager 50"</strong>, <strong>"no wager"</strong>, or <strong>"all in"</strong> to risk everything!
                     </div>
                 ` : `<div class="clue">${state.clue || 'Loading...'}</div>`}
             </div>

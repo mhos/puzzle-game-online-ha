@@ -75,12 +75,27 @@ class PuzzleGameOnlineConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        """Handle the initial step - device registration."""
-        errors: dict[str, str] = {}
-
+        """Handle the initial step - choose setup method."""
         # Check if already configured
         await self.async_set_unique_id(DOMAIN)
         self._abort_if_unique_id_configured()
+
+        if user_input is not None:
+            if user_input.get("setup_method") == "existing":
+                return await self.async_step_existing()
+            else:
+                return await self.async_step_register()
+
+        return self.async_show_menu(
+            step_id="user",
+            menu_options=["register", "existing"],
+        )
+
+    async def async_step_register(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Handle new account registration."""
+        errors: dict[str, str] = {}
 
         if user_input is not None:
             username = user_input.get(CONF_USERNAME, "").strip().lower()
@@ -157,7 +172,7 @@ class PuzzleGameOnlineConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     await api.close()
 
         return self.async_show_form(
-            step_id="user",
+            step_id="register",
             data_schema=vol.Schema({
                 vol.Required(CONF_USERNAME): str,
                 vol.Required(CONF_EMAIL): str,
@@ -167,6 +182,58 @@ class PuzzleGameOnlineConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             description_placeholders={
                 "api_url": "puzzleapi.techshit.xyz",
             },
+        )
+
+    async def async_step_existing(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Handle setup with existing API key."""
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            api_key = user_input.get(CONF_API_KEY, "").strip()
+
+            # Validate API key format
+            api_key_error = validate_api_key(api_key)
+            if api_key_error:
+                errors[CONF_API_KEY] = api_key_error
+            else:
+                # Try to validate the API key and get user info
+                api = PuzzleGameAPI(api_key)
+                try:
+                    stats = await api.get_my_stats()
+                    await api.close()
+
+                    # Extract user info from stats response
+                    username = stats.get("username", "")
+                    display_name = stats.get("display_name", username)
+
+                    # API key is valid, create the entry
+                    return self.async_create_entry(
+                        title=f"Puzzle Game ({display_name})",
+                        data={
+                            CONF_API_KEY: api_key,
+                            CONF_USER_ID: "",
+                            CONF_USERNAME: username,
+                            CONF_EMAIL: "",
+                            CONF_DISPLAY_NAME: display_name,
+                        },
+                    )
+                except PuzzleGameAPIError as err:
+                    _LOGGER.error("Invalid API key: %s", err)
+                    errors[CONF_API_KEY] = "api_key_invalid"
+                except Exception as err:
+                    _LOGGER.exception("Error validating API key: %s", err)
+                    errors["base"] = "cannot_connect"
+                finally:
+                    await api.close()
+
+        return self.async_show_form(
+            step_id="existing",
+            data_schema=vol.Schema({
+                vol.Required(CONF_API_KEY): str,
+            }),
+            errors=errors,
         )
 
     async def async_step_recover(

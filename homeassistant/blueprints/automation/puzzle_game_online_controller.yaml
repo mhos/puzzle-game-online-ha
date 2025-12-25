@@ -408,7 +408,7 @@ action:
                       preannounce: false
 
               #############################################
-              # WAGER COMMANDS (Phase 2) - Points based (0-50)
+              # WAGER COMMANDS (Phase 2) - Wager any amount up to full score
               #############################################
               - conditions:
                   - condition: template
@@ -416,13 +416,23 @@ action:
                       {{ state_attr('sensor.puzzle_game_online', 'phase') == 2 and
                          ('wager' in spoken_text or 'all in' in spoken_text or 'no wager' in spoken_text or 'skip wager' in spoken_text or 'points' in spoken_text) }}
                 sequence:
-                  # Parse the wager points (0-50 max)
+                  # Parse the wager points (-1 for all in, or specific amount)
                   - variables:
                       wager_points: >-
-                        {% if 'all in' in spoken_text or 'everything' in spoken_text or 'max' in spoken_text or 'maximum' in spoken_text %}
-                          50
+                        {% if 'all in' in spoken_text or 'everything' in spoken_text or 'max' in spoken_text or 'maximum' in spoken_text or 'all of it' in spoken_text %}
+                          -1
                         {% elif 'no wager' in spoken_text or 'skip wager' in spoken_text or 'zero' in spoken_text or 'nothing' in spoken_text %}
                           0
+                        {% elif 'one hundred' in spoken_text or '100' in spoken_text or 'hundred' in spoken_text %}
+                          100
+                        {% elif 'ninety' in spoken_text or '90' in spoken_text %}
+                          90
+                        {% elif 'eighty' in spoken_text or '80' in spoken_text %}
+                          80
+                        {% elif 'seventy' in spoken_text or '70' in spoken_text %}
+                          70
+                        {% elif 'sixty' in spoken_text or '60' in spoken_text %}
+                          60
                         {% elif 'fifty' in spoken_text or '50' in spoken_text %}
                           50
                         {% elif 'forty five' in spoken_text or 'forty-five' in spoken_text or '45' in spoken_text %}

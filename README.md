@@ -8,6 +8,7 @@ A voice-controlled word puzzle game integration for Home Assistant that connects
 
 - **Daily Puzzles**: Play AI-generated word puzzles with themed answers
 - **Bonus Games**: Unlimited bonus puzzles when you want more
+- **Wager System**: Risk your points on guessing the theme - go all in!
 - **Global Leaderboard**: Compete with other players worldwide
 - **Personal Statistics**: Track your games played, words solved, and more
 - **Voice Control**: Play hands-free using any Assist satellite
@@ -35,10 +36,13 @@ Click the button above, or manually:
 1. Go to **Settings > Devices & Services**
 2. Click **Add Integration**
 3. Search for "Puzzle Game Online"
-4. Enter your display name (this will appear on leaderboards)
-5. The integration will automatically register your device with the game server
+4. Choose your setup option:
+   - **Create a new account**: Enter username, email, and display name
+   - **Use an existing API key**: Enter your API key if reinstalling
+5. The integration will register with the game server
 
-> **Note:** A "Puzzle Game" entry will automatically appear in your sidebar!
+> **Note:** Your API key is shown in the integration options. Save it in case you need to reinstall!
+> A "Puzzle Game" entry will automatically appear in your sidebar.
 
 ### Step 3: Import the Blueprint
 
@@ -89,6 +93,12 @@ When the blueprint is updated:
 - "Pause" or "Stop" - Pause the game
 - "Give up" - End the game and reveal all answers
 
+### Wager Phase (After Solving All Words)
+
+- "Wager 50" or "Wager 20 points" - Risk specific points
+- "All in" - Risk your entire score!
+- "No wager" - Play it safe with no risk
+
 ### Spelling Mode
 
 When in spelling mode:
@@ -107,6 +117,7 @@ The integration provides the following services:
 | `puzzle_game_online.reveal_letter` | Reveal a random letter |
 | `puzzle_game_online.skip_word` | Skip the current word |
 | `puzzle_game_online.repeat_clue` | Repeat the current clue |
+| `puzzle_game_online.set_wager` | Set wager amount (-1 for all in) |
 | `puzzle_game_online.start_spelling` | Enter spelling mode |
 | `puzzle_game_online.add_letter` | Add a letter in spelling mode |
 | `puzzle_game_online.finish_spelling` | Submit spelled word |
@@ -141,11 +152,22 @@ The integration creates a sensor `sensor.puzzle_game_online` with the following 
 
 ## How Scoring Works
 
-- **Base Points**: 100 points per word
-- **Time Bonus**: Faster answers earn more points
-- **Reveal Penalty**: -10 points per revealed letter
-- **Skip Penalty**: -25 points for skipping
-- **Theme Bonus**: +200 points for guessing the theme
+### Word Points (Based on Reveals Used)
+- **No reveals**: 20 points per word
+- **1 reveal**: 15 points per word
+- **2 reveals**: 10 points per word
+- **3+ reveals**: 5 points per word
+
+### Bonuses
+- **Reveal Bonus**: 5 points for each unused reveal
+- **Time Bonus**: Points for completing faster
+
+### Wager System
+After solving all 5 words, you enter the wager phase:
+- Wager any amount from 0 to your entire score
+- **Correct theme guess**: Win your wager (double your risked points!)
+- **Wrong theme guess**: Lose your wager
+- Say "all in" to risk everything for maximum points!
 
 ## Requirements
 
