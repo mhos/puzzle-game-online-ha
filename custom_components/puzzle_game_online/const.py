@@ -62,6 +62,7 @@ ATTR_VIEW_ASSIST_DEVICE: Final = "view_assist_device"
 ATTR_SPELLING_MODE: Final = "spelling_mode"
 ATTR_SPELLING_BUFFER: Final = "spelling_buffer"
 ATTR_WAGER_PERCENT: Final = "wager_percent"
+ATTR_CURRENT_SCORE: Final = "current_score"
 
 # Config
 CONF_API_KEY: Final = "api_key"

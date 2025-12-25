@@ -75,6 +75,7 @@ class PuzzleGameCoordinator(DataUpdateCoordinator):
             "view_assist_device": self.game_manager.view_assist_device,
             "spelling_mode": self.game_manager.spelling_mode,
             "spelling_buffer": self.game_manager.spelling_buffer,
+            "current_score": state.current_score,
         }
 
     async def async_start_game(self, is_bonus: bool = False) -> dict[str, Any]:

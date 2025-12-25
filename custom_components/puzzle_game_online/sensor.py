@@ -30,6 +30,7 @@ from .const import (
     ATTR_VIEW_ASSIST_DEVICE,
     ATTR_SPELLING_MODE,
     ATTR_SPELLING_BUFFER,
+    ATTR_CURRENT_SCORE,
 )
 from .coordinator import PuzzleGameCoordinator
 
@@ -98,6 +99,7 @@ class PuzzleGameSensor(CoordinatorEntity, SensorEntity):
             ATTR_VIEW_ASSIST_DEVICE: state.get("view_assist_device"),
             ATTR_SPELLING_MODE: state.get("spelling_mode"),
             ATTR_SPELLING_BUFFER: state.get("spelling_buffer"),
+            ATTR_CURRENT_SCORE: state.get("current_score"),
         }
 
     @property
