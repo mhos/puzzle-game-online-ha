@@ -58,10 +58,15 @@ variables:
     {% else %}
       {{ state_attr('sensor.puzzle_game_online', 'active_satellite') | default('') }}
     {% endif %}
-  # Auto-detect View Assist device (display)
+  # Auto-detect View Assist device (display) - try direct lookup first, then fall back to stored value
   view_assist_device: >-
     {% if trigger.platform == 'conversation' and trigger.device_id is defined %}
-      {{ view_assist_entity(trigger.device_id) | default('') }}
+      {% set detected = view_assist_entity(trigger.device_id) | default('') %}
+      {% if detected not in ['', None] %}
+        {{ detected }}
+      {% else %}
+        {{ state_attr('sensor.puzzle_game_online', 'view_assist_device') | default('') }}
+      {% endif %}
     {% else %}
       {{ state_attr('sensor.puzzle_game_online', 'view_assist_device') | default('') }}
     {% endif %}
