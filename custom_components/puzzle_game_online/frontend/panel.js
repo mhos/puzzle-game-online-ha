@@ -23,7 +23,10 @@ class PuzzleGameOnlinePanel extends HTMLElement {
 
     set hass(hass) {
         this._hass = hass;
-        this.render();
+        // Don't re-render while help modal is open (preserves scroll position)
+        if (!this._helpVisible) {
+            this.render();
+        }
     }
 
     set panel(panel) {
@@ -45,7 +48,8 @@ class PuzzleGameOnlinePanel extends HTMLElement {
 
     _startPolling() {
         this._pollInterval = setInterval(() => {
-            if (this._activeTab === 'game') {
+            // Don't re-render while help modal is open (preserves scroll position)
+            if (this._activeTab === 'game' && !this._helpVisible) {
                 this.render();
             }
         }, 2000);
