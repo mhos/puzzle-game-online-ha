@@ -271,7 +271,7 @@ class GameManager:
                     if word_index not in self.state.solved_words:
                         self.state.solved_words.append(word_index)
 
-                    # Update reveals based on words solved
+                    # Update reveals based on words solved (earn 1 reveal per word)
                     self.state.reveals_available = BASE_REVEALS + len(self.state.solved_words)
 
                     # Update word display to show the correct answer

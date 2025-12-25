@@ -2,7 +2,7 @@
 from typing import Final
 
 DOMAIN: Final = "puzzle_game_online"
-VERSION: Final = "1.2.4"
+VERSION: Final = "1.2.5"
 
 # API Configuration
 API_BASE_URL: Final = "https://puzzleapi.techshit.xyz"
@@ -17,7 +17,7 @@ POINTS_PER_WORD: Final = 10
 THEME_BONUS: Final = 20
 MAX_SCORE: Final = 70
 WORDS_PER_PUZZLE: Final = 5
-BASE_REVEALS: Final = 3
+BASE_REVEALS: Final = 0
 
 # Panel Configuration
 PANEL_URL: Final = "/puzzle-game-online"
