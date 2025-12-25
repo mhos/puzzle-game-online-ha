@@ -69,16 +69,16 @@ give_up:
 
 set_wager:
   name: Set Wager
-  description: Set the wager percentage for the theme guess (0-100%)
+  description: Set the wager amount in points for the theme guess (0-50)
   fields:
-    percent:
-      name: Percent
-      description: Percentage of current score to wager (0-100)
+    points:
+      name: Points
+      description: Number of points to wager (0-50)
       required: true
       selector:
         number:
           min: 0
-          max: 100
+          max: 50
           step: 5
           mode: slider
 

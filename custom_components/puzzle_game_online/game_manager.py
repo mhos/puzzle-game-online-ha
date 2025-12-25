@@ -24,15 +24,18 @@ class GameState:
         # Puzzle data (from API - no answers)
         self.words_data: list[dict] = []  # [{clue, length}]
         self.theme: str = ""  # Only revealed at end
+        self.theme_display: str = ""  # Blanks pattern for theme (e.g., "_ _ _ _ _   _ _ _ _ _")
+        self.theme_length: int = 0  # Total letters in theme
+        self.theme_word_count: int = 1  # Number of words in theme
 
         # Game progress
-        self.phase: int = 1  # 1 = solving words, 2 = wager selection, 3 = guessing theme
+        self.phase: int = 1  # 1 = solving words, 2 = guessing theme
         self.current_word_index: int = 0
         self.reveals_available: int = BASE_REVEALS
         self.reveals_used: int = 0
 
-        # Wager
-        self.wager_percent: int = 0  # 0-100
+        # Wager (points-based, not percentage)
+        self.wager_amount: int = 0  # Points wagered
 
         # Tracking (mirrored from server)
         self.solved_words: list[int] = []  # Indices of solved words
@@ -75,7 +78,10 @@ class GameState:
             "completed_at": self.completed_at.isoformat() if self.completed_at else None,
             "final_score": self.final_score,
             "last_message": self.last_message,
-            "wager_percent": self.wager_percent,
+            "wager_amount": self.wager_amount,
+            "theme_display": self.theme_display,
+            "theme_length": self.theme_length,
+            "theme_word_count": self.theme_word_count,
         }
 
     def reset(self) -> None:
@@ -133,6 +139,11 @@ class GameManager:
 
             # Store puzzle data (clues and lengths only - no answers)
             self.state.words_data = puzzle_data.get("words", [])
+
+            # Store theme info for blanks display
+            self.state.theme_display = puzzle_data.get("theme_display", "")
+            self.state.theme_length = puzzle_data.get("theme_length", 0)
+            self.state.theme_word_count = puzzle_data.get("theme_word_count", 1)
 
             # Initialize word displays with blanks
             for i, word_data in enumerate(self.state.words_data):
@@ -361,17 +372,17 @@ class GameManager:
             "solved_words": solved_word_names,
         }
 
-    def set_wager(self, percent: int) -> dict[str, Any]:
-        """Set the wager percentage and transition to theme phase."""
+    def set_wager(self, points: int) -> dict[str, Any]:
+        """Set the wager amount in points and transition to theme phase."""
         if not self.state.is_active:
             return {"success": False, "message": "No active game"}
 
         if self.state.phase != 2:
             return {"success": False, "message": "Can only set wager after solving all words"}
 
-        # Clamp to valid range
-        percent = max(0, min(100, percent))
-        self.state.wager_percent = percent
+        # Clamp to valid range (0 to 50 points max)
+        points = max(0, min(50, points))
+        self.state.wager_amount = points
 
         # Transition to theme phase
         self.state.phase = 3
@@ -382,21 +393,26 @@ class GameManager:
             for i in sorted(self.state.solved_words)
         ]
 
-        if percent == 0:
+        if points == 0:
             wager_msg = "No wager set."
-        elif percent == 100:
-            wager_msg = "All in! You've wagered your entire score."
         else:
-            wager_msg = f"Wagering {percent} percent of your score."
+            wager_msg = f"Wagering {points} points."
 
-        message = f"{wager_msg} Now guess the theme that connects: {', '.join(solved_word_names)}"
+        # Build theme hint
+        theme_hint = ""
+        if self.state.theme_word_count > 1:
+            theme_hint = f" The theme is {self.state.theme_word_count} words with {self.state.theme_length} letters."
+        else:
+            theme_hint = f" The theme has {self.state.theme_length} letters."
+
+        message = f"{wager_msg}{theme_hint} Now guess the theme!"
         self.state.last_message = message
 
         return {
             "success": True,
             "message": message,
             "phase": 3,
-            "wager_percent": percent,
+            "wager_amount": points,
         }
 
     async def _end_game(
@@ -419,14 +435,18 @@ class GameManager:
             reveals_used = len(self.state.revealed_letters.get(i, []))
             word_results.append({"solved": solved, "reveals_used": reveals_used})
 
-        # Submit score to API with wager
+        # Submit score to API
+        # Note: API uses wager_percent but we convert our points to a percentage
+        # For now we'll use a simple mapping: each point = 2% (50 points = 100%)
+        wager_percent = min(100, self.state.wager_amount * 2)
+
         try:
             score_result = await self._api.submit_score(
                 puzzle_id=self.state.puzzle_id,
                 word_results=word_results,
                 time_seconds=time_seconds,
                 theme_correct=theme_correct,
-                wager_percent=self.state.wager_percent,
+                wager_percent=wager_percent,
             )
             self.state.final_score = score_result.get("final_score")
             rank = score_result.get("rank")
@@ -443,7 +463,7 @@ class GameManager:
                 score_parts.append(f"{score_result['time_bonus']} time bonus")
 
             # Add wager result to message if there was a wager
-            if self.state.wager_percent > 0 and wager_result != 0:
+            if self.state.wager_amount > 0 and wager_result != 0:
                 if wager_result > 0:
                     score_parts.append(f"+{wager_result} wager won")
                 else:
@@ -603,9 +623,10 @@ class GameManager:
         return "Guess the theme that connects all the words!"
 
     def get_current_blanks(self) -> str:
-        """Get the current word display."""
-        if self.state.phase != 1:
-            return ""
+        """Get the current word or theme display."""
+        # For theme phase (2 or 3), return theme blanks
+        if self.state.phase >= 2:
+            return self.state.theme_display or "_ _ _ _ _"
 
         idx = self.state.current_word_index
         return self.state.word_displays.get(idx, "")

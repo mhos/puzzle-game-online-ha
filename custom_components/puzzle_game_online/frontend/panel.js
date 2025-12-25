@@ -791,11 +791,11 @@ class PuzzleGameOnlinePanel extends HTMLElement {
                 <div class="word-number ${isPostWords ? 'final-phase' : ''}">
                     ${isWagerPhase ? '💰 MAKE YOUR WAGER!' : isThemePhase ? '🎯 FINAL ANSWER - Guess the Theme!' : `Word ${wordNum} of 5`}
                 </div>
-                ${!isPostWords ? `<div class="word-blanks">${state.blanks || '_ _ _ _ _'}</div>` : ''}
+                <div class="word-blanks">${state.blanks || '_ _ _ _ _'}</div>
                 ${isWagerPhase ? `
-                    <div class="clue">Risk your score for bonus points!</div>
+                    <div class="clue">Wager points on guessing the theme correctly!</div>
                     <div class="voice-hint">
-                        Say: <strong>"wager 50 percent"</strong>, <strong>"no wager"</strong>, or <strong>"all in"</strong>
+                        Say: <strong>"wager 20 points"</strong>, <strong>"no wager"</strong>, or <strong>"all in"</strong>
                     </div>
                 ` : `<div class="clue">${state.clue || 'Loading...'}</div>`}
             </div>

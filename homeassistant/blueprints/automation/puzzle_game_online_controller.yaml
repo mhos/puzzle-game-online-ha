@@ -408,49 +408,47 @@ action:
                       preannounce: false
 
               #############################################
-              # WAGER COMMANDS (Phase 2)
+              # WAGER COMMANDS (Phase 2) - Points based (0-50)
               #############################################
               - conditions:
                   - condition: template
                     value_template: >-
                       {{ state_attr('sensor.puzzle_game_online', 'phase') == 2 and
-                         ('wager' in spoken_text or 'all in' in spoken_text or 'no wager' in spoken_text or 'skip wager' in spoken_text) }}
+                         ('wager' in spoken_text or 'all in' in spoken_text or 'no wager' in spoken_text or 'skip wager' in spoken_text or 'points' in spoken_text) }}
                 sequence:
-                  # Parse the wager percentage
+                  # Parse the wager points (0-50 max)
                   - variables:
-                      wager_percent: >-
-                        {% if 'all in' in spoken_text or 'everything' in spoken_text or '100' in spoken_text %}
-                          100
+                      wager_points: >-
+                        {% if 'all in' in spoken_text or 'everything' in spoken_text or 'max' in spoken_text or 'maximum' in spoken_text %}
+                          50
                         {% elif 'no wager' in spoken_text or 'skip wager' in spoken_text or 'zero' in spoken_text or 'nothing' in spoken_text %}
                           0
                         {% elif 'fifty' in spoken_text or '50' in spoken_text %}
                           50
-                        {% elif 'twenty five' in spoken_text or 'twenty-five' in spoken_text or '25' in spoken_text %}
-                          25
-                        {% elif 'seventy five' in spoken_text or 'seventy-five' in spoken_text or '75' in spoken_text %}
-                          75
-                        {% elif 'ten' in spoken_text or '10' in spoken_text %}
-                          10
-                        {% elif 'twenty' in spoken_text or '20' in spoken_text %}
-                          20
-                        {% elif 'thirty' in spoken_text or '30' in spoken_text %}
-                          30
+                        {% elif 'forty five' in spoken_text or 'forty-five' in spoken_text or '45' in spoken_text %}
+                          45
                         {% elif 'forty' in spoken_text or '40' in spoken_text %}
                           40
-                        {% elif 'sixty' in spoken_text or '60' in spoken_text %}
-                          60
-                        {% elif 'seventy' in spoken_text or '70' in spoken_text %}
-                          70
-                        {% elif 'eighty' in spoken_text or '80' in spoken_text %}
-                          80
-                        {% elif 'ninety' in spoken_text or '90' in spoken_text %}
-                          90
+                        {% elif 'thirty five' in spoken_text or 'thirty-five' in spoken_text or '35' in spoken_text %}
+                          35
+                        {% elif 'thirty' in spoken_text or '30' in spoken_text %}
+                          30
+                        {% elif 'twenty five' in spoken_text or 'twenty-five' in spoken_text or '25' in spoken_text %}
+                          25
+                        {% elif 'twenty' in spoken_text or '20' in spoken_text %}
+                          20
+                        {% elif 'fifteen' in spoken_text or '15' in spoken_text %}
+                          15
+                        {% elif 'ten' in spoken_text or '10' in spoken_text %}
+                          10
+                        {% elif 'five' in spoken_text or '5' in spoken_text %}
+                          5
                         {% else %}
                           0
                         {% endif %}
                   - service: puzzle_game_online.set_wager
                     data:
-                      percent: "{{ wager_percent | int }}"
+                      points: "{{ wager_points | int }}"
                   - service: assist_satellite.announce
                     continue_on_error: true
                     target:
