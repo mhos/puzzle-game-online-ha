@@ -408,6 +408,58 @@ action:
                       preannounce: false
 
               #############################################
+              # WAGER COMMANDS (Phase 2)
+              #############################################
+              - conditions:
+                  - condition: template
+                    value_template: >-
+                      {{ state_attr('sensor.puzzle_game_online', 'phase') == 2 and
+                         ('wager' in spoken_text or 'all in' in spoken_text or 'no wager' in spoken_text or 'skip wager' in spoken_text) }}
+                sequence:
+                  # Parse the wager percentage
+                  - variables:
+                      wager_percent: >-
+                        {% if 'all in' in spoken_text or 'everything' in spoken_text or '100' in spoken_text %}
+                          100
+                        {% elif 'no wager' in spoken_text or 'skip wager' in spoken_text or 'zero' in spoken_text or 'nothing' in spoken_text %}
+                          0
+                        {% elif 'fifty' in spoken_text or '50' in spoken_text %}
+                          50
+                        {% elif 'twenty five' in spoken_text or 'twenty-five' in spoken_text or '25' in spoken_text %}
+                          25
+                        {% elif 'seventy five' in spoken_text or 'seventy-five' in spoken_text or '75' in spoken_text %}
+                          75
+                        {% elif 'ten' in spoken_text or '10' in spoken_text %}
+                          10
+                        {% elif 'twenty' in spoken_text or '20' in spoken_text %}
+                          20
+                        {% elif 'thirty' in spoken_text or '30' in spoken_text %}
+                          30
+                        {% elif 'forty' in spoken_text or '40' in spoken_text %}
+                          40
+                        {% elif 'sixty' in spoken_text or '60' in spoken_text %}
+                          60
+                        {% elif 'seventy' in spoken_text or '70' in spoken_text %}
+                          70
+                        {% elif 'eighty' in spoken_text or '80' in spoken_text %}
+                          80
+                        {% elif 'ninety' in spoken_text or '90' in spoken_text %}
+                          90
+                        {% else %}
+                          0
+                        {% endif %}
+                  - service: puzzle_game_online.set_wager
+                    data:
+                      percent: "{{ wager_percent | int }}"
+                  - service: assist_satellite.announce
+                    continue_on_error: true
+                    target:
+                      entity_id: "{{ satellite_entity }}"
+                    data:
+                      message: "{{ state_attr('sensor.puzzle_game_online', 'last_message') }}"
+                      preannounce: false
+
+              #############################################
               # PAUSE GAME
               #############################################
               - conditions:

@@ -66,6 +66,7 @@ class PuzzleGameCoordinator(DataUpdateCoordinator):
             "is_active": state.is_active,
             "last_message": state.last_message,
             "theme_revealed": state.theme if not state.is_active else None,
+            "wager_percent": state.wager_percent,
             "session_active": self.game_manager.session_active,
             "active_satellite": self.game_manager.active_satellite,
             "view_assist_device": self.game_manager.view_assist_device,
@@ -136,6 +137,12 @@ class PuzzleGameCoordinator(DataUpdateCoordinator):
         """Give up the current game."""
         result = await self.game_manager.give_up()
         await self._notify_update()
+        return result
+
+    def set_wager(self, percent: int) -> dict[str, Any]:
+        """Set the wager percentage."""
+        result = self.game_manager.set_wager(percent)
+        self.hass.async_create_task(self._notify_update())
         return result
 
     def set_session(

@@ -67,6 +67,21 @@ give_up:
   name: Give Up
   description: Give up the current game and reveal all answers
 
+set_wager:
+  name: Set Wager
+  description: Set the wager percentage for the theme guess (0-100%)
+  fields:
+    percent:
+      name: Percent
+      description: Percentage of current score to wager (0-100)
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 100
+          step: 5
+          mode: slider
+
 set_session:
   name: Set Session
   description: Set the voice session state

@@ -26,10 +26,13 @@ class GameState:
         self.theme: str = ""  # Only revealed at end
 
         # Game progress
-        self.phase: int = 1  # 1 = solving words, 2 = guessing theme
+        self.phase: int = 1  # 1 = solving words, 2 = wager selection, 3 = guessing theme
         self.current_word_index: int = 0
         self.reveals_available: int = BASE_REVEALS
         self.reveals_used: int = 0
+
+        # Wager
+        self.wager_percent: int = 0  # 0-100
 
         # Tracking (mirrored from server)
         self.solved_words: list[int] = []  # Indices of solved words
@@ -72,6 +75,7 @@ class GameState:
             "completed_at": self.completed_at.isoformat() if self.completed_at else None,
             "final_score": self.final_score,
             "last_message": self.last_message,
+            "wager_percent": self.wager_percent,
         }
 
     def reset(self) -> None:
@@ -228,6 +232,9 @@ class GameManager:
 
         if self.state.phase == 1:
             return await self._submit_word_answer(answer)
+        elif self.state.phase == 2:
+            # Phase 2 is wager - answers should go through set_wager instead
+            return {"success": False, "message": "Please set your wager first. Say 'wager 50 percent' or 'no wager'."}
         else:
             return await self._submit_theme_answer(answer)
 
@@ -329,7 +336,7 @@ class GameManager:
             return {"success": False, "message": f"Error checking theme: {err}"}
 
     async def _transition_to_phase2(self) -> dict[str, Any]:
-        """Transition to theme guessing phase."""
+        """Transition to wager phase after all words solved."""
         self.state.phase = 2
         self.state.current_word_index = -1
 
@@ -339,7 +346,11 @@ class GameManager:
             for i in sorted(self.state.solved_words)
         ]
 
-        message = f"All words solved! Now guess the theme that connects: {', '.join(solved_word_names)}"
+        message = (
+            f"All words solved: {', '.join(solved_word_names)}. "
+            "Now make your wager! You can risk 0 to 100 percent of your score on guessing the theme. "
+            "Say 'wager 50 percent', 'no wager', or 'all in'."
+        )
         self.state.last_message = message
 
         return {
@@ -348,6 +359,44 @@ class GameManager:
             "message": message,
             "phase": 2,
             "solved_words": solved_word_names,
+        }
+
+    def set_wager(self, percent: int) -> dict[str, Any]:
+        """Set the wager percentage and transition to theme phase."""
+        if not self.state.is_active:
+            return {"success": False, "message": "No active game"}
+
+        if self.state.phase != 2:
+            return {"success": False, "message": "Can only set wager after solving all words"}
+
+        # Clamp to valid range
+        percent = max(0, min(100, percent))
+        self.state.wager_percent = percent
+
+        # Transition to theme phase
+        self.state.phase = 3
+
+        # Get the solved words for display
+        solved_word_names = [
+            self.state.word_displays.get(i, "???")
+            for i in sorted(self.state.solved_words)
+        ]
+
+        if percent == 0:
+            wager_msg = "No wager set."
+        elif percent == 100:
+            wager_msg = "All in! You've wagered your entire score."
+        else:
+            wager_msg = f"Wagering {percent} percent of your score."
+
+        message = f"{wager_msg} Now guess the theme that connects: {', '.join(solved_word_names)}"
+        self.state.last_message = message
+
+        return {
+            "success": True,
+            "message": message,
+            "phase": 3,
+            "wager_percent": percent,
         }
 
     async def _end_game(
@@ -370,22 +419,43 @@ class GameManager:
             reveals_used = len(self.state.revealed_letters.get(i, []))
             word_results.append({"solved": solved, "reveals_used": reveals_used})
 
-        # Submit score to API
+        # Submit score to API with wager
         try:
             score_result = await self._api.submit_score(
                 puzzle_id=self.state.puzzle_id,
                 word_results=word_results,
                 time_seconds=time_seconds,
                 theme_correct=theme_correct,
+                wager_percent=self.state.wager_percent,
             )
             self.state.final_score = score_result.get("final_score")
             rank = score_result.get("rank")
             total = score_result.get("total_players")
+            wager_result = score_result.get("wager_result", 0)
+
+            # Build score breakdown message
+            score_parts = []
+            if score_result.get("word_score"):
+                score_parts.append(f"{score_result['word_score']} from words")
+            if score_result.get("reveals_bonus"):
+                score_parts.append(f"{score_result['reveals_bonus']} reveal bonus")
+            if score_result.get("time_bonus"):
+                score_parts.append(f"{score_result['time_bonus']} time bonus")
+
+            # Add wager result to message if there was a wager
+            if self.state.wager_percent > 0 and wager_result != 0:
+                if wager_result > 0:
+                    score_parts.append(f"+{wager_result} wager won")
+                else:
+                    score_parts.append(f"{wager_result} wager lost")
+
+            if score_parts:
+                message += f" Score breakdown: {', '.join(score_parts)}."
+
+            message += f" Final score: {self.state.final_score}."
 
             if rank and total:
-                message += f" Final score: {self.state.final_score}. Rank: {rank} of {total}."
-            elif self.state.final_score:
-                message += f" Final score: {self.state.final_score}."
+                message += f" Rank: {rank} of {total}."
 
         except PuzzleGameAPIError as err:
             _LOGGER.error("Failed to submit score: %s", err)

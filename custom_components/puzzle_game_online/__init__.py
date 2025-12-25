@@ -32,6 +32,7 @@ from .const import (
     SERVICE_FINISH_SPELLING,
     SERVICE_CANCEL_SPELLING,
     SERVICE_GIVE_UP,
+    SERVICE_SET_WAGER,
     SERVICE_SET_SESSION,
     SERVICE_LISTENING_TIMEOUT,
     SERVICE_RESET_TIMEOUT,
@@ -194,6 +195,12 @@ async def _async_setup_services(
         result = await coordinator.async_give_up()
         _fire_result_event(hass, "game_ended", result)
 
+    async def handle_set_wager(call: ServiceCall) -> None:
+        """Handle set wager service."""
+        percent = call.data.get("percent", 0)
+        result = coordinator.set_wager(percent)
+        _fire_result_event(hass, "wager_set", result)
+
     async def handle_set_session(call: ServiceCall) -> None:
         """Handle set session service."""
         coordinator.set_session(
@@ -256,6 +263,11 @@ async def _async_setup_services(
 
     hass.services.async_register(
         DOMAIN, SERVICE_GIVE_UP, handle_give_up,
+    )
+
+    hass.services.async_register(
+        DOMAIN, SERVICE_SET_WAGER, handle_set_wager,
+        schema=vol.Schema({vol.Required("percent"): vol.All(vol.Coerce(int), vol.Range(min=0, max=100))}),
     )
 
     hass.services.async_register(

@@ -722,7 +722,9 @@ class PuzzleGameOnlinePanel extends HTMLElement {
 
         const phase = state.phase || 1;
         const wordNum = state.word_number || 1;
-        const isPhase2 = phase === 2;
+        const isWagerPhase = phase === 2;
+        const isThemePhase = phase === 3;
+        const isPostWords = phase >= 2; // Any phase after word solving
 
         // Check for feedback message
         let feedbackHtml = '';
@@ -753,7 +755,7 @@ class PuzzleGameOnlinePanel extends HTMLElement {
             let content = i;
 
             if (i === 6) {
-                dotClass += isPhase2 ? ' final pending' : '';
+                dotClass += isThemePhase ? ' final pending' : '';
                 content = '🎯';
             } else if (solvedIndices.includes(wordIndex)) {
                 dotClass += ' correct';
@@ -772,8 +774,8 @@ class PuzzleGameOnlinePanel extends HTMLElement {
                     <div class="stat-value">${state.score || 0}</div>
                 </div>
                 <div class="stat">
-                    <div class="stat-label">${isPhase2 ? 'Phase' : 'Word'}</div>
-                    <div class="stat-value">${isPhase2 ? 'Theme' : `${wordNum}/5`}</div>
+                    <div class="stat-label">${isPostWords ? 'Phase' : 'Word'}</div>
+                    <div class="stat-value">${isWagerPhase ? 'Wager' : isThemePhase ? 'Theme' : `${wordNum}/5`}</div>
                 </div>
                 <div class="stat">
                     <div class="stat-label">Reveals</div>
@@ -783,14 +785,19 @@ class PuzzleGameOnlinePanel extends HTMLElement {
 
             ${feedbackHtml}
 
-            ${isPhase2 ? solvedWordsHtml : ''}
+            ${isPostWords ? solvedWordsHtml : ''}
 
             <div class="word-display">
-                <div class="word-number ${isPhase2 ? 'final-phase' : ''}">
-                    ${isPhase2 ? '🎯 FINAL ANSWER - Guess the Theme!' : `Word ${wordNum} of 5`}
+                <div class="word-number ${isPostWords ? 'final-phase' : ''}">
+                    ${isWagerPhase ? '💰 MAKE YOUR WAGER!' : isThemePhase ? '🎯 FINAL ANSWER - Guess the Theme!' : `Word ${wordNum} of 5`}
                 </div>
-                <div class="word-blanks">${state.blanks || '_ _ _ _ _'}</div>
-                <div class="clue">${state.clue || 'Loading...'}</div>
+                ${!isPostWords ? `<div class="word-blanks">${state.blanks || '_ _ _ _ _'}</div>` : ''}
+                ${isWagerPhase ? `
+                    <div class="clue">Risk your score for bonus points!</div>
+                    <div class="voice-hint">
+                        Say: <strong>"wager 50 percent"</strong>, <strong>"no wager"</strong>, or <strong>"all in"</strong>
+                    </div>
+                ` : `<div class="clue">${state.clue || 'Loading...'}</div>`}
             </div>
 
             <div class="progress">${progressHtml}</div>

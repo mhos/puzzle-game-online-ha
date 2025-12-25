@@ -2,7 +2,7 @@
 from typing import Final
 
 DOMAIN: Final = "puzzle_game_online"
-VERSION: Final = "1.1.7"
+VERSION: Final = "1.2.0"
 
 # API Configuration
 API_BASE_URL: Final = "https://puzzleapi.techshit.xyz"
@@ -38,6 +38,7 @@ SERVICE_ADD_LETTER: Final = "add_letter"
 SERVICE_FINISH_SPELLING: Final = "finish_spelling"
 SERVICE_CANCEL_SPELLING: Final = "cancel_spelling"
 SERVICE_GIVE_UP: Final = "give_up"
+SERVICE_SET_WAGER: Final = "set_wager"
 SERVICE_SET_SESSION: Final = "set_session"
 SERVICE_LISTENING_TIMEOUT: Final = "listening_timeout"
 SERVICE_RESET_TIMEOUT: Final = "reset_timeout"
@@ -60,6 +61,7 @@ ATTR_ACTIVE_SATELLITE: Final = "active_satellite"
 ATTR_VIEW_ASSIST_DEVICE: Final = "view_assist_device"
 ATTR_SPELLING_MODE: Final = "spelling_mode"
 ATTR_SPELLING_BUFFER: Final = "spelling_buffer"
+ATTR_WAGER_PERCENT: Final = "wager_percent"
 
 # Config
 CONF_API_KEY: Final = "api_key"
