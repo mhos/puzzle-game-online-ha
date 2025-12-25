@@ -15,6 +15,20 @@ A voice-controlled word puzzle game integration for Home Assistant that connects
 - **Display Support**: Works with View Assist displays for visual gameplay
 - **Voice-Only Mode**: Also works with voice-only devices
 
+## Prerequisites
+
+**Before installing Puzzle Game Online, you must have the following already set up and working:**
+
+### For Voice Control
+- **Text-to-Speech (TTS)**: Any TTS integration configured and working in Home Assistant
+- **Speech-to-Text (STT)**: Any STT integration configured and working in Home Assistant
+- **Assist Satellite**: At least one voice-enabled device set up as an Assist satellite
+
+### For Visual Display on Satellite Devices
+- **[View Assist](https://github.com/dinki/View-Assist)**: Required if you want to see the game dashboard on satellite display devices (Echo Show, Lenovo ThinkSmart, tablets, etc.)
+
+> **Important:** View Assist must be fully installed and working with your display devices BEFORE adding Puzzle Game Online. The game will work voice-only without View Assist, but you won't see the visual dashboard on your satellite displays.
+
 ## Installation
 
 ### Step 1: Install via HACS
@@ -168,13 +182,6 @@ After solving all 5 words, you enter the wager phase:
 - **Correct theme guess**: Win your wager (double your risked points!)
 - **Wrong theme guess**: Lose your wager
 - Say "all in" to risk everything for maximum points!
-
-## Requirements
-
-- Home Assistant 2024.1.0 or newer
-- Internet connection to puzzle game server
-- (Optional) Assist satellite for voice control
-- (Optional) View Assist display for visual gameplay
 
 ## License
 
