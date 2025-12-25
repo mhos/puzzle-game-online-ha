@@ -48,7 +48,7 @@ class PuzzleGameOnlinePanel extends HTMLElement {
             if (this._activeTab === 'game') {
                 this.render();
             }
-        }, 2000);
+        }, 500);
     }
 
     _stopPolling() {
