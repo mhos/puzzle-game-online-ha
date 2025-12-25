@@ -49,8 +49,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Puzzle Game Online from a config entry."""
     hass.data.setdefault(DOMAIN, {})
 
-    # Initialize API client
-    api = PuzzleGameAPI(entry.data.get(CONF_API_KEY))
+    # Initialize API client with user's timezone
+    api = PuzzleGameAPI(
+        api_key=entry.data.get(CONF_API_KEY),
+        timezone=hass.config.time_zone,
+    )
 
     # Validate API connection by checking user stats (uses API key auth)
     try:

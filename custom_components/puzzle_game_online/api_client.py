@@ -26,9 +26,10 @@ class PuzzleGameAuthError(PuzzleGameAPIError):
 class PuzzleGameAPI:
     """API client for Puzzle Game Online."""
 
-    def __init__(self, api_key: str | None = None) -> None:
+    def __init__(self, api_key: str | None = None, timezone: str | None = None) -> None:
         """Initialize the API client."""
         self._api_key = api_key
+        self._timezone = timezone  # User's timezone from Home Assistant
         self._session: aiohttp.ClientSession | None = None
 
     @property
@@ -141,6 +142,8 @@ class PuzzleGameAPI:
         params = {}
         if puzzle_date:
             params["puzzle_date"] = puzzle_date
+        if self._timezone:
+            params["timezone"] = self._timezone
         return await self._request("GET", "/puzzle/daily", params=params)
 
     async def get_bonus_puzzle(self) -> dict[str, Any]:
@@ -301,7 +304,10 @@ class PuzzleGameAPI:
              perfect_games, total_words_solved, total_themes_correct,
              avg_time_seconds, fastest_time_seconds, current_streak, longest_streak, ...}
         """
-        return await self._request("GET", "/user/stats")
+        params = {}
+        if self._timezone:
+            params["timezone"] = self._timezone
+        return await self._request("GET", "/user/stats", params=params if params else None)
 
     async def get_my_history(self, limit: int = 50, offset: int = 0) -> dict[str, Any]:
         """
