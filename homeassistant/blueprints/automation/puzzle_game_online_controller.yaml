@@ -34,6 +34,15 @@ trigger:
       - "continue [the] [puzzle] game"
     id: "continue"
 
+  # Show stats command
+  - platform: conversation
+    command:
+      - "show puzzle stats"
+      - "show [my] [puzzle] [game] stats"
+      - "puzzle game stats"
+      - "my puzzle stats"
+    id: show_stats
+
   # Custom event fired by coordinator when STT sensor changes during active session
   - platform: event
     event_type: puzzle_game_online_speech
@@ -209,6 +218,31 @@ action:
             data:
               start_message: ""
               extra_system_prompt: "You are in puzzle game mode. The user is playing a word puzzle game. Do NOT respond to their speech - just say OK or stay completely silent. The game automation will handle their answer. Do not try to help, answer questions, or have a conversation."
+
+      #############################################
+      # SHOW STATS
+      #############################################
+      - conditions:
+          - condition: trigger
+            id: show_stats
+          # Ensure we have a display
+          - condition: template
+            value_template: "{{ has_display }}"
+        sequence:
+          - service: view_assist.navigate
+            continue_on_error: true
+            data:
+              device: "{{ view_assist_device }}"
+              path: "/puzzle_game_online"
+              revert_timeout: 120
+          - service: assist_satellite.announce
+            continue_on_error: true
+            target:
+              entity_id: "{{ satellite_entity }}"
+            data:
+              message: "Here are your puzzle game stats."
+              preannounce: false
+          - stop: "Showed stats"
 
       #############################################
       # CONTINUE/RESUME GAME
