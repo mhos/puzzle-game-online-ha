@@ -1,7 +1,7 @@
 /**
  * Puzzle Game Online Panel for Home Assistant
- * View-only panel for game display, stats, and leaderboard
- * Gameplay is voice-only via Assist satellites
+ * Optimized for small screens (Echo Show, Lenovo Thinksmart)
+ * Uses render-once pattern with element updates
  */
 
 class PuzzleGameOnlinePanel extends HTMLElement {
@@ -19,11 +19,14 @@ class PuzzleGameOnlinePanel extends HTMLElement {
         this._lastMessage = null;
         this._feedbackTimeout = null;
         this._helpVisible = false;
+        this._rendered = false;
     }
 
     set hass(hass) {
         this._hass = hass;
-        this.render();
+        if (this._rendered) {
+            this._updateDisplay();
+        }
     }
 
     set panel(panel) {
@@ -31,7 +34,9 @@ class PuzzleGameOnlinePanel extends HTMLElement {
     }
 
     connectedCallback() {
-        this.render();
+        this._render();
+        this._rendered = true;
+        this._updateDisplay();
         this._startPolling();
         this._loadData();
     }
@@ -46,7 +51,7 @@ class PuzzleGameOnlinePanel extends HTMLElement {
     _startPolling() {
         this._pollInterval = setInterval(() => {
             if (this._activeTab === 'game') {
-                this.render();
+                this._updateDisplay();
             }
         }, 500);
     }
@@ -77,7 +82,7 @@ class PuzzleGameOnlinePanel extends HTMLElement {
             console.error('Failed to load data:', e);
         }
 
-        this.render();
+        this._updateDisplay();
     }
 
     async _loadLeaderboard() {
@@ -87,17 +92,13 @@ class PuzzleGameOnlinePanel extends HTMLElement {
             const result = await this._hass.callWS({
                 type: 'puzzle_game_online/leaderboard',
                 period: this._leaderboardPeriod
-            }).catch((e) => {
-                console.error('Leaderboard WS error:', e);
-                return null;
-            });
+            }).catch(() => null);
             if (result) {
                 this._leaderboard = result;
             }
         } catch (e) {
             console.error('Failed to load leaderboard:', e);
         }
-        this.render();
     }
 
     _getGameState() {
@@ -109,42 +110,38 @@ class PuzzleGameOnlinePanel extends HTMLElement {
     _switchTab(tab) {
         this._activeTab = tab;
         if (tab === 'leaderboard') {
-            this._leaderboard = null; // Show loading state
-            this.render();
-            this._loadLeaderboard();
+            this._leaderboard = null;
+            this._loadLeaderboard().then(() => this._renderTabContent());
         } else if (tab === 'stats') {
-            this._stats = null; // Show loading state
-            this.render();
-            this._loadData();
-        } else {
-            this.render();
+            this._stats = null;
+            this._loadData().then(() => this._renderTabContent());
         }
+        this._updateTabButtons();
+        this._renderTabContent();
     }
 
     _switchLeaderboardPeriod(period) {
         this._leaderboardPeriod = period;
-        this._leaderboard = null; // Show loading state
-        this.render();
-        this._loadLeaderboard();
+        this._leaderboard = null;
+        this._renderTabContent();
+        this._loadLeaderboard().then(() => this._renderTabContent());
     }
 
     _toggleHelp() {
         this._helpVisible = !this._helpVisible;
-        this.render();
+        const modal = this.shadowRoot.getElementById('helpModal');
+        if (modal) {
+            modal.classList.toggle('show', this._helpVisible);
+        }
     }
 
-    render() {
-        const state = this._getGameState();
+    _updateTabButtons() {
+        this.shadowRoot.querySelectorAll('.tab').forEach(tab => {
+            tab.classList.toggle('active', tab.dataset.tab === this._activeTab);
+        });
+    }
 
-        // Preserve help modal scroll position before re-render
-        let helpScrollTop = 0;
-        if (this._helpVisible) {
-            const helpContent = this.shadowRoot.querySelector('.help-content');
-            if (helpContent) {
-                helpScrollTop = helpContent.scrollTop;
-            }
-        }
-
+    _render() {
         this.shadowRoot.innerHTML = `
             <style>
                 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -158,6 +155,7 @@ class PuzzleGameOnlinePanel extends HTMLElement {
                     height: 100%;
                     width: 100%;
                     align-items: center;
+                    justify-content: center;
                     color: white;
                     padding: 10px;
                     position: absolute;
@@ -172,106 +170,102 @@ class PuzzleGameOnlinePanel extends HTMLElement {
                     background: rgba(255, 255, 255, 0.1);
                     backdrop-filter: blur(10px);
                     border-radius: 20px;
-                    padding: 20px;
+                    padding: 15px;
                     width: 95%;
                     max-width: 800px;
                     box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-                    margin: 10px auto;
                 }
 
                 .header {
                     text-align: center;
-                    margin-bottom: 15px;
+                    margin-bottom: 10px;
                 }
 
                 .header h1 {
-                    font-size: clamp(1.5em, 5vw, 2.5em);
-                    margin-bottom: 5px;
+                    font-size: clamp(1.3em, 4vw, 2em);
+                    margin-bottom: 3px;
                     text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
                 }
 
                 .user-info {
-                    font-size: 0.9em;
+                    font-size: clamp(0.7em, 2vw, 0.9em);
                     opacity: 0.8;
                 }
 
-                /* Tabs */
                 .tabs {
                     display: flex;
-                    gap: 10px;
-                    margin-bottom: 20px;
+                    gap: 8px;
+                    margin-bottom: 12px;
                     justify-content: center;
                     flex-wrap: wrap;
                 }
 
                 .tab {
-                    padding: 10px 20px;
+                    padding: 8px 16px;
                     background: rgba(255, 255, 255, 0.2);
                     border: none;
                     border-radius: 10px;
                     color: rgba(255,255,255,0.8);
-                    font-size: 1rem;
+                    font-size: clamp(0.8em, 2.5vw, 1rem);
                     cursor: pointer;
                     transition: all 0.2s;
                 }
 
-                .tab:hover {
-                    background: rgba(255, 255, 255, 0.3);
-                }
-
+                .tab:hover { background: rgba(255, 255, 255, 0.3); }
                 .tab.active {
                     background: rgba(255, 255, 255, 0.4);
                     color: white;
                     font-weight: bold;
                 }
 
+                .tab-content { display: none; }
+                .tab-content.active { display: block; }
+
                 /* Game Display */
                 .stats-row {
                     display: flex;
                     justify-content: space-around;
-                    margin-bottom: 15px;
+                    margin-bottom: 10px;
                     flex-wrap: wrap;
-                    gap: 10px;
+                    gap: 8px;
                 }
 
                 .stat {
                     background: rgba(255, 255, 255, 0.2);
-                    padding: 10px 15px;
-                    border-radius: 15px;
+                    padding: 8px 12px;
+                    border-radius: 12px;
                     text-align: center;
-                    min-width: 80px;
+                    min-width: 70px;
                     flex: 1;
                 }
 
                 .stat-label {
-                    font-size: 0.8em;
+                    font-size: clamp(0.65em, 1.8vw, 0.8em);
                     opacity: 0.8;
-                    margin-bottom: 3px;
+                    margin-bottom: 2px;
                 }
 
                 .stat-value {
-                    font-size: 1.5em;
+                    font-size: clamp(1.1em, 3.5vw, 1.5em);
                     font-weight: bold;
                 }
 
                 .feedback-message {
-                    padding: 15px;
-                    border-radius: 15px;
+                    padding: 12px;
+                    border-radius: 12px;
                     text-align: center;
-                    margin-bottom: 15px;
-                    font-size: 1.1em;
+                    margin-bottom: 10px;
+                    font-size: clamp(0.9em, 2.5vw, 1.1em);
                     font-weight: bold;
                     display: none;
                     animation: slideIn 0.3s ease-out;
                 }
 
                 .feedback-message.show { display: block; }
-
                 .feedback-message.correct {
                     background: rgba(76, 175, 80, 0.85);
                     border: 2px solid rgba(76, 175, 80, 1);
                 }
-
                 .feedback-message.wrong {
                     background: rgba(244, 67, 54, 0.85);
                     border: 2px solid rgba(244, 67, 54, 1);
@@ -285,40 +279,41 @@ class PuzzleGameOnlinePanel extends HTMLElement {
                 .solved-words {
                     background: rgba(255, 215, 0, 0.2);
                     border: 2px solid rgba(255, 215, 0, 0.5);
-                    padding: 15px;
-                    border-radius: 15px;
+                    padding: 10px;
+                    border-radius: 12px;
                     text-align: center;
-                    margin-bottom: 15px;
+                    margin-bottom: 10px;
                     display: none;
                 }
 
                 .solved-words.show { display: block; }
 
                 .solved-words-label {
-                    font-size: 0.9em;
+                    font-size: clamp(0.75em, 2vw, 0.9em);
                     opacity: 0.9;
-                    margin-bottom: 10px;
+                    margin-bottom: 6px;
                     color: #ffd700;
                     font-weight: bold;
                 }
 
                 .solved-words-list {
-                    font-size: 1.2em;
+                    font-size: clamp(0.95em, 2.5vw, 1.2em);
                     font-weight: bold;
                     letter-spacing: 1px;
+                    line-height: 1.4;
                 }
 
                 .word-display {
                     background: rgba(255, 255, 255, 0.2);
-                    padding: 20px;
-                    border-radius: 20px;
+                    padding: 15px 10px;
+                    border-radius: 15px;
                     text-align: center;
-                    margin-bottom: 15px;
+                    margin-bottom: 10px;
                 }
 
                 .word-number {
-                    font-size: 1em;
-                    margin-bottom: 10px;
+                    font-size: clamp(0.85em, 2.2vw, 1em);
+                    margin-bottom: 8px;
                     opacity: 0.9;
                 }
 
@@ -328,38 +323,50 @@ class PuzzleGameOnlinePanel extends HTMLElement {
                 }
 
                 .word-blanks {
-                    font-size: clamp(1.2em, 4vw, 2em);
-                    letter-spacing: 0.15em;
+                    font-size: clamp(1em, 2.5vw, 1.4em);
+                    letter-spacing: 0.12em;
                     font-family: 'Courier New', monospace;
                     font-weight: bold;
-                    margin: 10px 0;
+                    margin: 8px 0;
+                    white-space: pre-wrap;
                     word-wrap: break-word;
                 }
 
                 .clue {
-                    font-size: 1.1em;
+                    font-size: clamp(0.85em, 2.2vw, 1.1em);
                     font-style: italic;
-                    margin-top: 10px;
+                    margin-top: 8px;
                     opacity: 0.9;
+                    line-height: 1.3;
                 }
+
+                .voice-hint {
+                    background: rgba(255, 255, 255, 0.15);
+                    padding: 10px;
+                    border-radius: 8px;
+                    margin-top: 10px;
+                    font-size: clamp(0.75em, 2vw, 0.9em);
+                }
+
+                .voice-hint strong { color: #ffd700; }
 
                 .progress {
                     display: flex;
                     justify-content: center;
-                    gap: 10px;
-                    margin-top: 15px;
+                    gap: clamp(6px, 2vw, 10px);
+                    margin-top: 10px;
                     flex-wrap: wrap;
                 }
 
                 .progress-dot {
-                    width: 35px;
-                    height: 35px;
+                    width: clamp(28px, 7vw, 35px);
+                    height: clamp(28px, 7vw, 35px);
                     border-radius: 50%;
                     background: rgba(255, 255, 255, 0.3);
                     display: flex;
                     align-items: center;
                     justify-content: center;
-                    font-size: 1em;
+                    font-size: clamp(0.85em, 2.5vw, 1em);
                     font-weight: bold;
                 }
 
@@ -377,51 +384,133 @@ class PuzzleGameOnlinePanel extends HTMLElement {
 
                 .no-game {
                     text-align: center;
-                    padding: 40px 20px;
+                    padding: 20px 10px;
                 }
 
                 .no-game h2 {
-                    margin-bottom: 15px;
-                    font-size: 1.5em;
+                    margin-bottom: 10px;
+                    font-size: clamp(1.1em, 3vw, 1.4em);
                 }
 
                 .no-game p {
                     opacity: 0.8;
-                    line-height: 1.6;
+                    line-height: 1.5;
+                    font-size: clamp(0.85em, 2.2vw, 1em);
                 }
 
-                .voice-hint {
-                    background: rgba(255, 255, 255, 0.15);
+                /* Help Button */
+                .help-button {
+                    position: fixed;
+                    bottom: 10px;
+                    right: 10px;
+                    width: 40px;
+                    height: 40px;
+                    border-radius: 50%;
+                    background: rgba(255, 255, 255, 0.3);
+                    border: 2px solid rgba(255, 255, 255, 0.5);
+                    color: white;
+                    font-size: 22px;
+                    font-weight: bold;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    cursor: pointer;
+                    z-index: 1000;
+                }
+
+                .help-modal {
+                    display: none;
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    background: rgba(0, 0, 0, 0.8);
+                    z-index: 2000;
+                    align-items: center;
+                    justify-content: center;
                     padding: 15px;
-                    border-radius: 10px;
-                    margin-top: 20px;
-                    font-size: 0.95em;
                 }
 
-                .voice-hint strong { color: #ffd700; }
+                .help-modal.show { display: flex; }
 
-                /* Leaderboard */
+                .help-content {
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    border-radius: 15px;
+                    padding: 20px;
+                    max-width: 450px;
+                    max-height: 80vh;
+                    overflow-y: auto;
+                }
+
+                .help-header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    margin-bottom: 15px;
+                }
+
+                .help-title { font-size: 1.3em; font-weight: bold; }
+
+                .help-close {
+                    width: 30px;
+                    height: 30px;
+                    border-radius: 50%;
+                    background: rgba(255, 255, 255, 0.3);
+                    border: none;
+                    color: white;
+                    font-size: 18px;
+                    cursor: pointer;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                }
+
+                .help-section {
+                    background: rgba(255, 255, 255, 0.15);
+                    border-radius: 10px;
+                    padding: 12px;
+                    margin-bottom: 12px;
+                }
+
+                .help-section h3 {
+                    color: #ffd700;
+                    margin-bottom: 8px;
+                    font-size: 1em;
+                }
+
+                .help-command {
+                    background: rgba(0, 0, 0, 0.2);
+                    border-left: 3px solid #4caf50;
+                    padding: 6px 10px;
+                    margin-bottom: 6px;
+                    border-radius: 0 5px 5px 0;
+                    font-size: 0.9em;
+                }
+
+                .help-command strong {
+                    color: #4caf50;
+                    display: block;
+                    margin-bottom: 2px;
+                }
+
+                /* Leaderboard & Stats */
                 .period-tabs {
                     display: flex;
-                    gap: 10px;
-                    margin-bottom: 20px;
+                    gap: 8px;
+                    margin-bottom: 15px;
                     justify-content: center;
                     flex-wrap: wrap;
                 }
 
                 .period-tab {
-                    padding: 10px 20px;
+                    padding: 8px 16px;
                     background: rgba(255, 255, 255, 0.2);
                     border: none;
                     border-radius: 10px;
                     color: rgba(255,255,255,0.8);
-                    font-size: 1rem;
+                    font-size: 0.9rem;
                     cursor: pointer;
-                    transition: all 0.2s;
-                }
-
-                .period-tab:hover {
-                    background: rgba(255, 255, 255, 0.3);
                 }
 
                 .period-tab.active {
@@ -437,14 +526,14 @@ class PuzzleGameOnlinePanel extends HTMLElement {
 
                 .leaderboard-table th,
                 .leaderboard-table td {
-                    padding: 12px;
+                    padding: 10px;
                     text-align: left;
                     border-bottom: 1px solid rgba(255,255,255,0.1);
                 }
 
                 .leaderboard-table th {
                     opacity: 0.8;
-                    font-size: 0.85em;
+                    font-size: 0.8em;
                     text-transform: uppercase;
                 }
 
@@ -452,221 +541,180 @@ class PuzzleGameOnlinePanel extends HTMLElement {
                 .rank-2 { color: #c0c0c0; font-weight: bold; }
                 .rank-3 { color: #cd7f32; font-weight: bold; }
 
-                /* Stats */
                 .stats-grid {
                     display: grid;
-                    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-                    gap: 15px;
+                    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+                    gap: 12px;
                 }
 
                 .stats-card {
                     background: rgba(255, 255, 255, 0.15);
-                    padding: 20px;
-                    border-radius: 15px;
+                    padding: 15px;
+                    border-radius: 12px;
                     text-align: center;
                 }
 
                 .stats-card .value {
-                    font-size: 1.8em;
+                    font-size: 1.5em;
                     font-weight: bold;
                     color: #ffd700;
                 }
 
                 .stats-card .label {
                     opacity: 0.8;
-                    font-size: 0.85em;
-                    margin-top: 5px;
+                    font-size: 0.8em;
+                    margin-top: 4px;
                 }
 
                 .loading {
                     text-align: center;
-                    padding: 40px;
+                    padding: 30px;
                     opacity: 0.7;
                 }
 
-                /* Help Button */
-                .help-button {
-                    position: fixed;
-                    bottom: 15px;
-                    right: 15px;
-                    width: 45px;
-                    height: 45px;
-                    border-radius: 50%;
-                    background: rgba(255, 255, 255, 0.3);
-                    border: 2px solid rgba(255, 255, 255, 0.5);
-                    color: white;
-                    font-size: 24px;
-                    font-weight: bold;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    cursor: pointer;
-                    z-index: 1000;
-                    transition: all 0.3s ease;
-                }
+                /* Small screens - Echo Show, Lenovo Thinksmart */
+                @media (max-width: 1024px) and (max-height: 600px) {
+                    :host {
+                        padding: 5px;
+                        justify-content: flex-start;
+                    }
 
-                .help-button:hover {
-                    background: rgba(255, 255, 255, 0.5);
-                    transform: scale(1.1);
-                }
+                    .container {
+                        padding: 8px;
+                        border-radius: 12px;
+                        margin-top: 5px;
+                    }
 
-                .help-modal {
-                    display: none;
-                    position: fixed;
-                    top: 0;
-                    left: 0;
-                    width: 100%;
-                    height: 100%;
-                    background: rgba(0, 0, 0, 0.8);
-                    z-index: 2000;
-                    align-items: center;
-                    justify-content: center;
-                    padding: 20px;
-                }
+                    .header {
+                        margin-bottom: 6px;
+                    }
 
-                .help-modal.show { display: flex; }
+                    .header h1 {
+                        font-size: 1.4em;
+                        margin-bottom: 2px;
+                    }
 
-                .help-content {
-                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                    border-radius: 20px;
-                    padding: 25px;
-                    max-width: 500px;
-                    max-height: 80vh;
-                    overflow-y: auto;
-                    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
-                }
+                    .tabs {
+                        margin-bottom: 8px;
+                        gap: 5px;
+                    }
 
-                .help-header {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    margin-bottom: 20px;
-                }
+                    .tab {
+                        padding: 6px 12px;
+                        font-size: 0.8em;
+                    }
 
-                .help-title { font-size: 1.5em; font-weight: bold; }
+                    .stats-row {
+                        margin-bottom: 6px;
+                        gap: 5px;
+                    }
 
-                .help-close {
-                    width: 35px;
-                    height: 35px;
-                    border-radius: 50%;
-                    background: rgba(255, 255, 255, 0.3);
-                    border: none;
-                    color: white;
-                    font-size: 20px;
-                    cursor: pointer;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                }
+                    .stat {
+                        padding: 6px 10px;
+                        border-radius: 8px;
+                        min-width: 60px;
+                    }
 
-                .help-section {
-                    background: rgba(255, 255, 255, 0.15);
-                    border-radius: 12px;
-                    padding: 15px;
-                    margin-bottom: 15px;
-                }
+                    .stat-label { font-size: 0.65em; }
+                    .stat-value { font-size: 1.1em; }
 
-                .help-section h3 {
-                    color: #ffd700;
-                    margin-bottom: 10px;
-                    font-size: 1.1em;
-                }
+                    .feedback-message {
+                        padding: 8px;
+                        margin-bottom: 6px;
+                        font-size: 0.9em;
+                    }
 
-                .help-command {
-                    background: rgba(0, 0, 0, 0.2);
-                    border-left: 3px solid #4caf50;
-                    padding: 8px 12px;
-                    margin-bottom: 8px;
-                    border-radius: 0 5px 5px 0;
-                }
+                    .solved-words {
+                        padding: 8px;
+                        margin-bottom: 6px;
+                    }
 
-                .help-command strong {
-                    color: #4caf50;
-                    display: block;
-                    margin-bottom: 3px;
-                }
+                    .word-display {
+                        padding: 10px 8px;
+                        margin-bottom: 6px;
+                        border-radius: 10px;
+                    }
 
-                .help-command span {
-                    font-size: 0.9em;
-                    opacity: 0.9;
+                    .word-number {
+                        font-size: 0.8em;
+                        margin-bottom: 5px;
+                    }
+
+                    .word-blanks {
+                        font-size: 1.1em;
+                        margin: 5px 0;
+                    }
+
+                    .clue {
+                        font-size: 0.85em;
+                        margin-top: 5px;
+                    }
+
+                    .voice-hint {
+                        padding: 8px;
+                        font-size: 0.75em;
+                    }
+
+                    .progress {
+                        gap: 5px;
+                        margin-top: 6px;
+                    }
+
+                    .progress-dot {
+                        width: 26px;
+                        height: 26px;
+                        font-size: 0.8em;
+                    }
+
+                    .no-game {
+                        padding: 15px 8px;
+                    }
+
+                    .no-game h2 { font-size: 1.1em; }
+                    .no-game p { font-size: 0.85em; }
+
+                    .help-button {
+                        width: 35px;
+                        height: 35px;
+                        font-size: 18px;
+                        bottom: 8px;
+                        right: 8px;
+                    }
                 }
             </style>
 
             <div class="help-button" id="helpBtn">?</div>
 
-            <div class="help-modal ${this._helpVisible ? 'show' : ''}" id="helpModal">
+            <div class="help-modal" id="helpModal">
                 <div class="help-content">
                     <div class="help-header">
-                        <div class="help-title">🎤 Voice Commands</div>
+                        <div class="help-title">Voice Commands</div>
                         <button class="help-close" id="helpClose">×</button>
                     </div>
-
                     <div class="help-section">
-                        <h3>Starting the Game</h3>
-                        <div class="help-command">
-                            <strong>"Start puzzle game"</strong>
-                            <span>Begin today's daily puzzle</span>
-                        </div>
-                        <div class="help-command">
-                            <strong>"Play bonus game"</strong>
-                            <span>Start an extra bonus round</span>
-                        </div>
-                        <div class="help-command">
-                            <strong>"Continue puzzle game"</strong>
-                            <span>Resume a paused game</span>
-                        </div>
+                        <h3>Starting</h3>
+                        <div class="help-command"><strong>"Start puzzle game"</strong><span>Begin daily puzzle</span></div>
+                        <div class="help-command"><strong>"Play bonus game"</strong><span>Extra puzzle</span></div>
+                        <div class="help-command"><strong>"Continue puzzle game"</strong><span>Resume paused</span></div>
                     </div>
-
                     <div class="help-section">
-                        <h3>During Gameplay</h3>
-                        <div class="help-command">
-                            <strong>Say your answer</strong>
-                            <span>Just speak the word naturally</span>
-                        </div>
-                        <div class="help-command">
-                            <strong>"Reveal" or "Hint"</strong>
-                            <span>Show one random letter</span>
-                        </div>
-                        <div class="help-command">
-                            <strong>"Skip" or "Next"</strong>
-                            <span>Move to next word</span>
-                        </div>
-                        <div class="help-command">
-                            <strong>"Repeat" or "Clue"</strong>
-                            <span>Hear the clue again</span>
-                        </div>
-                        <div class="help-command">
-                            <strong>"Spell"</strong>
-                            <span>Enter spelling mode</span>
-                        </div>
+                        <h3>Playing</h3>
+                        <div class="help-command"><strong>Say your answer</strong><span>Speak the word</span></div>
+                        <div class="help-command"><strong>"Reveal" / "Hint"</strong><span>Show a letter</span></div>
+                        <div class="help-command"><strong>"Skip" / "Next"</strong><span>Next word</span></div>
+                        <div class="help-command"><strong>"Repeat" / "Clue"</strong><span>Hear clue again</span></div>
+                        <div class="help-command"><strong>"Spell"</strong><span>Spell mode</span></div>
                     </div>
-
                     <div class="help-section">
-                        <h3>Wager Phase</h3>
-                        <div class="help-command">
-                            <strong>"Wager 50" or "Wager 20 points"</strong>
-                            <span>Risk points on the theme</span>
-                        </div>
-                        <div class="help-command">
-                            <strong>"All in"</strong>
-                            <span>Risk your entire score!</span>
-                        </div>
-                        <div class="help-command">
-                            <strong>"No wager"</strong>
-                            <span>Play it safe, no risk</span>
-                        </div>
+                        <h3>Wager</h3>
+                        <div class="help-command"><strong>"Wager 50"</strong><span>Risk points</span></div>
+                        <div class="help-command"><strong>"No wager"</strong><span>Play safe</span></div>
+                        <div class="help-command"><strong>"All in"</strong><span>Risk all!</span></div>
                     </div>
-
                     <div class="help-section">
                         <h3>Ending</h3>
-                        <div class="help-command">
-                            <strong>"Pause" or "Stop"</strong>
-                            <span>Pause the game</span>
-                        </div>
-                        <div class="help-command">
-                            <strong>"Give up"</strong>
-                            <span>End game and see answers</span>
-                        </div>
+                        <div class="help-command"><strong>"Pause" / "Stop"</strong><span>Pause game</span></div>
+                        <div class="help-command"><strong>"Give up"</strong><span>End & see answers</span></div>
                     </div>
                 </div>
             </div>
@@ -674,65 +722,82 @@ class PuzzleGameOnlinePanel extends HTMLElement {
             <div class="container">
                 <div class="header">
                     <h1>🦉 Puzzle Game Online</h1>
-                    ${this._userInfo ? `<div class="user-info">Playing as: ${this._userInfo.display_name || this._userInfo.username}</div>` : ''}
+                    <div class="user-info" id="userInfo"></div>
                 </div>
 
                 <div class="tabs">
-                    <button class="tab ${this._activeTab === 'game' ? 'active' : ''}" data-tab="game">Game</button>
-                    <button class="tab ${this._activeTab === 'leaderboard' ? 'active' : ''}" data-tab="leaderboard">Leaderboard</button>
-                    <button class="tab ${this._activeTab === 'stats' ? 'active' : ''}" data-tab="stats">My Stats</button>
+                    <button class="tab active" data-tab="game">Game</button>
+                    <button class="tab" data-tab="leaderboard">Leaderboard</button>
+                    <button class="tab" data-tab="stats">Stats</button>
                 </div>
 
-                ${this._activeTab === 'game' ? this._renderGame(state) : ''}
-                ${this._activeTab === 'leaderboard' ? this._renderLeaderboard() : ''}
-                ${this._activeTab === 'stats' ? this._renderStats() : ''}
+                <div class="tab-content active" id="gameTab"></div>
+                <div class="tab-content" id="leaderboardTab"></div>
+                <div class="tab-content" id="statsTab"></div>
             </div>
         `;
 
-        // Add event listeners
+        // Set up event listeners once
         this.shadowRoot.querySelectorAll('.tab').forEach(tab => {
             tab.addEventListener('click', () => this._switchTab(tab.dataset.tab));
         });
 
-        this.shadowRoot.querySelectorAll('.period-tab').forEach(tab => {
-            tab.addEventListener('click', () => this._switchLeaderboardPeriod(tab.dataset.period));
-        });
-
-        // Help button
-        const helpBtn = this.shadowRoot.getElementById('helpBtn');
-        const helpClose = this.shadowRoot.getElementById('helpClose');
-        const helpModal = this.shadowRoot.getElementById('helpModal');
-
-        if (helpBtn) helpBtn.addEventListener('click', () => this._toggleHelp());
-        if (helpClose) helpClose.addEventListener('click', () => this._toggleHelp());
-        if (helpModal) helpModal.addEventListener('click', (e) => {
+        this.shadowRoot.getElementById('helpBtn').addEventListener('click', () => this._toggleHelp());
+        this.shadowRoot.getElementById('helpClose').addEventListener('click', () => this._toggleHelp());
+        this.shadowRoot.getElementById('helpModal').addEventListener('click', (e) => {
             if (e.target.id === 'helpModal') this._toggleHelp();
         });
+    }
 
-        // Restore help modal scroll position after re-render
-        if (this._helpVisible && helpScrollTop > 0) {
-            const helpContent = this.shadowRoot.querySelector('.help-content');
-            if (helpContent) {
-                helpContent.scrollTop = helpScrollTop;
-            }
+    _updateDisplay() {
+        if (!this._hass) return;
+
+        // Update user info
+        const userInfoEl = this.shadowRoot.getElementById('userInfo');
+        if (userInfoEl && this._userInfo) {
+            userInfoEl.textContent = `Playing as: ${this._userInfo.display_name || this._userInfo.username}`;
+        }
+
+        // Update active tab content
+        this._renderTabContent();
+    }
+
+    _renderTabContent() {
+        const gameTab = this.shadowRoot.getElementById('gameTab');
+        const leaderboardTab = this.shadowRoot.getElementById('leaderboardTab');
+        const statsTab = this.shadowRoot.getElementById('statsTab');
+
+        // Toggle visibility
+        gameTab.classList.toggle('active', this._activeTab === 'game');
+        leaderboardTab.classList.toggle('active', this._activeTab === 'leaderboard');
+        statsTab.classList.toggle('active', this._activeTab === 'stats');
+
+        if (this._activeTab === 'game') {
+            gameTab.innerHTML = this._renderGame();
+        } else if (this._activeTab === 'leaderboard') {
+            leaderboardTab.innerHTML = this._renderLeaderboard();
+            // Re-attach period tab listeners
+            leaderboardTab.querySelectorAll('.period-tab').forEach(tab => {
+                tab.addEventListener('click', () => this._switchLeaderboardPeriod(tab.dataset.period));
+            });
+        } else if (this._activeTab === 'stats') {
+            statsTab.innerHTML = this._renderStats();
         }
     }
 
-    _renderGame(state) {
+    _renderGame() {
+        const state = this._getGameState();
+
         if (!state || !state.is_active) {
             const dailyPlayed = this._stats && this._stats.daily_played_today;
 
             if (dailyPlayed) {
                 return `
                     <div class="no-game">
-                        <h2>✅ Daily Puzzle Complete!</h2>
-                        <p>
-                            You've already played today's puzzle.<br>
-                            Come back tomorrow for a new daily challenge!
-                        </p>
+                        <h2>Daily Puzzle Complete!</h2>
+                        <p>Come back tomorrow for a new challenge!</p>
                         <div class="voice-hint">
-                            <strong>🎤 Want to play more?</strong><br>
-                            Say <strong>"Play bonus game"</strong> to your Assist satellite for an extra puzzle!
+                            <strong>Want more?</strong> Say <strong>"Play bonus game"</strong>
                         </div>
                     </div>
                 `;
@@ -740,14 +805,10 @@ class PuzzleGameOnlinePanel extends HTMLElement {
 
             return `
                 <div class="no-game">
-                    <h2>🎯 Ready to Play?</h2>
-                    <p>
-                        Solve 5 words connected by a theme.<br>
-                        Earn points and compete on the leaderboard!
-                    </p>
+                    <h2>Ready to Play?</h2>
+                    <p>Solve 5 words connected by a theme!</p>
                     <div class="voice-hint">
-                        <strong>🎤 Voice Control Only</strong><br>
-                        Say <strong>"Start puzzle game"</strong> to your Assist satellite to begin!
+                        Say <strong>"Start puzzle game"</strong> to begin!
                     </div>
                 </div>
             `;
@@ -757,9 +818,9 @@ class PuzzleGameOnlinePanel extends HTMLElement {
         const wordNum = state.word_number || 1;
         const isWagerPhase = phase === 2;
         const isThemePhase = phase === 3;
-        const isPostWords = phase >= 2; // Any phase after word solving
+        const isPostWords = phase >= 2;
 
-        // Check for feedback message
+        // Feedback message
         let feedbackHtml = '';
         if (state.last_message && state.last_message !== this._lastMessage) {
             this._lastMessage = state.last_message;
@@ -767,21 +828,20 @@ class PuzzleGameOnlinePanel extends HTMLElement {
             feedbackHtml = `<div class="feedback-message show ${isCorrect ? 'correct' : 'wrong'}">${state.last_message}</div>`;
         }
 
-        // Solved words section
+        // Solved words
         let solvedWordsHtml = '';
         if (state.solved_words && state.solved_words.length > 0) {
             solvedWordsHtml = `
                 <div class="solved-words show">
-                    <div class="solved-words-label">🎯 Your Clue Words:</div>
+                    <div class="solved-words-label">Your Clue Words:</div>
                     <div class="solved-words-list">${state.solved_words.join(' • ')}</div>
                 </div>
             `;
         }
 
         // Progress dots
-        let progressHtml = '';
-        // Convert indices to numbers to handle potential string serialization from HA
         const solvedIndices = (state.solved_word_indices || []).map(Number);
+        let progressHtml = '';
         for (let i = 1; i <= 6; i++) {
             const wordIndex = i - 1;
             let dotClass = 'progress-dot';
@@ -822,14 +882,13 @@ class PuzzleGameOnlinePanel extends HTMLElement {
 
             <div class="word-display">
                 <div class="word-number ${isPostWords ? 'final-phase' : ''}">
-                    ${isWagerPhase ? '💰 MAKE YOUR WAGER!' : isThemePhase ? '🎯 FINAL ANSWER - Guess the Theme!' : `Word ${wordNum} of 5`}
+                    ${isWagerPhase ? '💰 MAKE YOUR WAGER!' : isThemePhase ? '🎯 Guess the Theme!' : `Word ${wordNum} of 5`}
                 </div>
                 <div class="word-blanks">${state.blanks || '_ _ _ _ _'}</div>
                 ${isWagerPhase ? `
-                    <div class="clue">Your score: <strong>${state.current_score || '?'}</strong> points. Wager 0 to ${state.current_score || '?'} on the theme!</div>
+                    <div class="clue">Score: <strong>${state.current_score || 0}</strong> pts. Wager 0-${state.current_score || 0}</div>
                     <div class="voice-hint">
-                        Say: <strong>"wager [amount]"</strong>, <strong>"no wager"</strong>, or <strong>"all in"</strong><br>
-                        Win = gain your wager | Lose = lose your wager
+                        Say: <strong>"wager [amount]"</strong>, <strong>"no wager"</strong>, or <strong>"all in"</strong>
                     </div>
                 ` : `<div class="clue">${state.clue || 'Loading...'}</div>`}
             </div>
@@ -842,7 +901,7 @@ class PuzzleGameOnlinePanel extends HTMLElement {
         return `
             <div class="period-tabs">
                 <button class="period-tab ${this._leaderboardPeriod === 'daily' ? 'active' : ''}" data-period="daily">Today</button>
-                <button class="period-tab ${this._leaderboardPeriod === 'weekly' ? 'active' : ''}" data-period="weekly">This Week</button>
+                <button class="period-tab ${this._leaderboardPeriod === 'weekly' ? 'active' : ''}" data-period="weekly">Week</button>
                 <button class="period-tab ${this._leaderboardPeriod === 'alltime' ? 'active' : ''}" data-period="alltime">All Time</button>
             </div>
 
@@ -850,7 +909,7 @@ class PuzzleGameOnlinePanel extends HTMLElement {
                 <table class="leaderboard-table">
                     <thead>
                         <tr>
-                            <th>Rank</th>
+                            <th>#</th>
                             <th>Player</th>
                             <th>Score</th>
                             ${this._leaderboardPeriod !== 'daily' ? '<th>Games</th>' : ''}
@@ -867,20 +926,20 @@ class PuzzleGameOnlinePanel extends HTMLElement {
                         `).join('')}
                     </tbody>
                 </table>
-            ` : '<div class="loading">Loading leaderboard...</div>'}
+            ` : '<div class="loading">Loading...</div>'}
         `;
     }
 
     _renderStats() {
         if (!this._stats) {
-            return '<div class="loading">Loading stats...</div>';
+            return '<div class="loading">Loading...</div>';
         }
 
         return `
             <div class="stats-grid">
                 <div class="stats-card">
                     <div class="value">${this._stats.games_played || 0}</div>
-                    <div class="label">Games Played</div>
+                    <div class="label">Games</div>
                 </div>
                 <div class="stats-card">
                     <div class="value">${this._stats.total_score || 0}</div>
@@ -892,30 +951,21 @@ class PuzzleGameOnlinePanel extends HTMLElement {
                 </div>
                 <div class="stats-card">
                     <div class="value">${this._stats.best_score || 0}</div>
-                    <div class="label">Best Score</div>
+                    <div class="label">Best</div>
                 </div>
                 <div class="stats-card">
                     <div class="value">${this._stats.current_streak || 0}</div>
-                    <div class="label">Current Streak</div>
-                </div>
-                <div class="stats-card">
-                    <div class="value">${this._stats.longest_streak || 0}</div>
-                    <div class="label">Longest Streak</div>
+                    <div class="label">Streak</div>
                 </div>
                 <div class="stats-card">
                     <div class="value">${this._stats.perfect_games || 0}</div>
-                    <div class="label">Perfect Games</div>
-                </div>
-                <div class="stats-card">
-                    <div class="value">${this._stats.total_words_solved || 0}</div>
-                    <div class="label">Words Solved</div>
+                    <div class="label">Perfect</div>
                 </div>
             </div>
         `;
     }
 }
 
-// Only register if not already defined (prevents errors on hot reload)
 if (!customElements.get('puzzle-game-online-panel')) {
     customElements.define('puzzle-game-online-panel', PuzzleGameOnlinePanel);
 }

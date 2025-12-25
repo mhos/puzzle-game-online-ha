@@ -59,7 +59,7 @@ class PuzzleGameCoordinator(DataUpdateCoordinator):
             "word_number": state.current_word_index + 1 if state.phase == 1 else 6,
             "score": state.final_score or 0,
             "reveals": reveals_remaining,
-            "blanks": self.game_manager.get_current_blanks() if state.phase == 1 else "",
+            "blanks": self.game_manager.get_current_blanks(),
             "clue": self.game_manager.get_current_clue(),
             "solved_words": solved_words_display,
             "solved_word_indices": state.solved_words,
