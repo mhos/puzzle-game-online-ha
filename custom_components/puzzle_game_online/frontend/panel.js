@@ -976,6 +976,85 @@ class PuzzleGameOnlinePanel extends HTMLElement {
                         bottom: 8px;
                         right: 8px;
                     }
+
+                    /* Game Complete - Small Screen */
+                    .game-complete {
+                        padding: 10px;
+                    }
+
+                    .result-header {
+                        gap: 8px;
+                        margin-bottom: 6px;
+                    }
+
+                    .result-emoji {
+                        font-size: 1.5em;
+                    }
+
+                    .result-header h2 {
+                        font-size: 1.1em;
+                    }
+
+                    .result-message {
+                        font-size: 0.95em;
+                        margin-bottom: 3px;
+                    }
+
+                    .theme-reveal {
+                        font-size: 1.1em;
+                        margin: 6px 0;
+                    }
+
+                    .theme-success {
+                        font-size: 0.95em;
+                        margin: 3px 0 10px;
+                    }
+
+                    .final-score {
+                        padding: 10px;
+                        margin: 10px 0;
+                    }
+
+                    .final-score .score-label {
+                        font-size: 0.8em;
+                    }
+
+                    .final-score .score-value {
+                        font-size: 1.8em;
+                    }
+
+                    .score-breakdown {
+                        padding: 8px;
+                        margin: 8px 0;
+                    }
+
+                    .score-row {
+                        padding: 4px 0;
+                        font-size: 0.85em;
+                    }
+
+                    .game-stats-row {
+                        gap: 12px;
+                        margin: 10px 0;
+                    }
+
+                    .mini-stat {
+                        padding: 6px 10px;
+                    }
+
+                    .mini-value {
+                        font-size: 0.8em;
+                    }
+
+                    .next-action {
+                        margin-top: 10px;
+                        padding-top: 10px;
+                    }
+
+                    .next-action p {
+                        font-size: 0.9em;
+                        margin-bottom: 6px;
+                    }
                 }
             </style>
 
