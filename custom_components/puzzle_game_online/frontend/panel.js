@@ -23,6 +23,8 @@ class PuzzleGameOnlinePanel extends HTMLElement {
         this._feedbackTimeout = null;
         this._helpVisible = false;
         this._rendered = false;
+        this._lastGameResult = null;  // Store last game result for end-game display
+        this._wasActive = false;  // Track if game was active to detect end
     }
 
     set hass(hass) {
@@ -739,6 +741,133 @@ class PuzzleGameOnlinePanel extends HTMLElement {
                     opacity: 0.7;
                 }
 
+                /* Game Complete Screen */
+                .game-complete {
+                    text-align: center;
+                    padding: 15px;
+                }
+
+                .game-complete.theme-correct {
+                    background: linear-gradient(135deg, rgba(76, 175, 80, 0.2) 0%, rgba(76, 175, 80, 0.05) 100%);
+                    border-radius: 16px;
+                }
+
+                .game-complete.theme-wrong {
+                    background: linear-gradient(135deg, rgba(244, 67, 54, 0.1) 0%, rgba(244, 67, 54, 0.02) 100%);
+                    border-radius: 16px;
+                }
+
+                .result-header {
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 10px;
+                    margin-bottom: 10px;
+                }
+
+                .result-emoji {
+                    font-size: 2em;
+                }
+
+                .result-header h2 {
+                    margin: 0;
+                    font-size: 1.3em;
+                }
+
+                .result-message {
+                    font-size: 1.1em;
+                    opacity: 0.9;
+                    margin-bottom: 5px;
+                }
+
+                .theme-reveal {
+                    font-size: 1.4em;
+                    font-weight: bold;
+                    color: #ffd700;
+                    margin: 10px 0;
+                    text-transform: uppercase;
+                }
+
+                .theme-success {
+                    font-size: 1.1em;
+                    color: #4caf50;
+                    margin: 5px 0 15px;
+                }
+
+                .final-score {
+                    background: rgba(255, 255, 255, 0.15);
+                    border-radius: 12px;
+                    padding: 15px;
+                    margin: 15px 0;
+                }
+
+                .final-score .score-label {
+                    font-size: 0.9em;
+                    opacity: 0.8;
+                    margin-bottom: 5px;
+                }
+
+                .final-score .score-value {
+                    font-size: 2.5em;
+                    font-weight: bold;
+                    color: #ffd700;
+                }
+
+                .score-breakdown {
+                    background: rgba(0, 0, 0, 0.2);
+                    border-radius: 10px;
+                    padding: 12px;
+                    margin: 10px 0;
+                }
+
+                .score-row {
+                    display: flex;
+                    justify-content: space-between;
+                    padding: 6px 0;
+                    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+                    font-size: 0.95em;
+                }
+
+                .score-row:last-child {
+                    border-bottom: none;
+                }
+
+                .score-row.bonus span:last-child {
+                    color: #4caf50;
+                }
+
+                .score-row.penalty span:last-child {
+                    color: #f44336;
+                }
+
+                .game-stats-row {
+                    display: flex;
+                    justify-content: center;
+                    gap: 20px;
+                    margin: 15px 0;
+                }
+
+                .mini-stat {
+                    background: rgba(255, 255, 255, 0.1);
+                    padding: 8px 15px;
+                    border-radius: 20px;
+                }
+
+                .mini-value {
+                    font-size: 0.9em;
+                }
+
+                .next-action {
+                    margin-top: 15px;
+                    padding-top: 15px;
+                    border-top: 1px solid rgba(255, 255, 255, 0.1);
+                }
+
+                .next-action p {
+                    margin: 0 0 10px;
+                    opacity: 0.9;
+                }
+
                 /* Small screens - Echo Show, Lenovo Thinksmart */
                 @media (max-width: 1024px) and (max-height: 600px) {
                     :host {
@@ -919,6 +1048,24 @@ class PuzzleGameOnlinePanel extends HTMLElement {
     _updateDisplay() {
         if (!this._hass) return;
 
+        // Check if game just ended - capture result for end-game display
+        const state = this._getGameState();
+        const isActive = state && state.is_active;
+
+        if (this._wasActive && !isActive && state) {
+            // Game just ended - capture the final state
+            this._lastGameResult = {
+                score: state.score || state.current_score || 0,
+                solved_words: state.solved_words || [],
+                theme_revealed: state.theme_revealed,
+                last_message: state.last_message,
+                // We'll fetch more details from history
+            };
+            // Fetch the actual game details from history
+            this._loadLastGameDetails();
+        }
+        this._wasActive = isActive;
+
         // Update user info
         const userInfoEl = this.shadowRoot.getElementById('userInfo');
         if (userInfoEl && this._userInfo) {
@@ -927,6 +1074,21 @@ class PuzzleGameOnlinePanel extends HTMLElement {
 
         // Update active tab content
         this._renderTabContent();
+    }
+
+    async _loadLastGameDetails() {
+        try {
+            const result = await this._hass.callWS({
+                type: 'puzzle_game_online/game_history',
+                limit: 1
+            }).catch(() => null);
+            if (result && result.games && result.games.length > 0) {
+                this._lastGameResult = result.games[0];
+                this._renderTabContent();
+            }
+        } catch (e) {
+            console.error('Failed to load last game details:', e);
+        }
     }
 
     _renderTabContent() {
@@ -964,6 +1126,12 @@ class PuzzleGameOnlinePanel extends HTMLElement {
 
         if (!state || !state.is_active) {
             const dailyPlayed = this._stats && this._stats.daily_played_today;
+            const lastGame = this._lastGameResult;
+
+            // Show detailed end-game summary if we have last game data
+            if (lastGame && lastGame.final_score !== undefined) {
+                return this._renderGameComplete(lastGame, dailyPlayed);
+            }
 
             if (dailyPlayed) {
                 return `
@@ -1252,6 +1420,101 @@ class PuzzleGameOnlinePanel extends HTMLElement {
         const mins = Math.floor(seconds / 60);
         const secs = seconds % 60;
         return `${mins}:${secs.toString().padStart(2, '0')}`;
+    }
+
+    _renderGameComplete(game, dailyPlayed) {
+        const score = game.final_score || 0;
+        const wordsSolved = game.words_solved || 0;
+        const themeCorrect = game.theme_correct;
+        const theme = game.theme || 'Unknown';
+        const isBonus = game.is_bonus;
+        const timeStr = this._formatTime(game.time_seconds);
+
+        // Score breakdown
+        const wordScore = game.word_score || 0;
+        const timeBonus = game.time_bonus || 0;
+        const revealsBonus = game.reveals_bonus || 0;
+        const wagerAmount = game.wager_amount || 0;
+        const wagerResult = game.wager_result || 0;
+
+        // Determine result emoji and message
+        let resultEmoji, resultMessage, resultClass;
+        if (themeCorrect === true) {
+            resultEmoji = '🎉';
+            resultClass = 'theme-correct';
+            if (score >= 100) {
+                resultMessage = 'Amazing! Perfect game!';
+            } else if (score >= 80) {
+                resultMessage = 'Fantastic work!';
+            } else {
+                resultMessage = 'You got it!';
+            }
+        } else if (themeCorrect === false) {
+            resultEmoji = '😔';
+            resultClass = 'theme-wrong';
+            resultMessage = 'So close! The theme was:';
+        } else {
+            resultEmoji = '🏁';
+            resultClass = '';
+            resultMessage = 'Game complete!';
+        }
+
+        // Build score breakdown rows
+        let breakdownHtml = `<div class="score-row"><span>Words (${wordsSolved}/5)</span><span>+${wordScore}</span></div>`;
+        if (timeBonus > 0) {
+            breakdownHtml += `<div class="score-row bonus"><span>Time Bonus</span><span>+${timeBonus}</span></div>`;
+        }
+        if (revealsBonus > 0) {
+            breakdownHtml += `<div class="score-row bonus"><span>Reveal Bonus</span><span>+${revealsBonus}</span></div>`;
+        }
+        if (wagerAmount > 0) {
+            const wagerClass = wagerResult >= 0 ? 'bonus' : 'penalty';
+            const wagerSign = wagerResult >= 0 ? '+' : '';
+            breakdownHtml += `<div class="score-row ${wagerClass}"><span>Wager (${wagerAmount})</span><span>${wagerSign}${wagerResult}</span></div>`;
+        }
+
+        return `
+            <div class="game-complete ${resultClass}">
+                <div class="result-header">
+                    <span class="result-emoji">${resultEmoji}</span>
+                    <h2>${isBonus ? 'Bonus Round' : 'Daily Puzzle'} Complete!</h2>
+                </div>
+
+                <div class="result-message">${resultMessage}</div>
+                ${themeCorrect === false ? `<div class="theme-reveal">${theme}</div>` : ''}
+                ${themeCorrect === true ? `<div class="theme-success">Theme: ${theme}</div>` : ''}
+
+                <div class="final-score">
+                    <div class="score-label">Final Score</div>
+                    <div class="score-value">${score}</div>
+                </div>
+
+                <div class="score-breakdown">
+                    ${breakdownHtml}
+                </div>
+
+                <div class="game-stats-row">
+                    <div class="mini-stat">
+                        <span class="mini-value">⏱️ ${timeStr}</span>
+                    </div>
+                    <div class="mini-stat">
+                        <span class="mini-value">💡 ${game.reveals_used || 0} reveals</span>
+                    </div>
+                </div>
+
+                <div class="next-action">
+                    ${dailyPlayed && !isBonus ?
+                        `<p>Come back tomorrow for the next daily puzzle!</p>
+                         <div class="voice-hint">
+                             <strong>Want more?</strong> Say <strong>"Play bonus game"</strong>
+                         </div>` :
+                        `<div class="voice-hint">
+                             Say <strong>"${isBonus ? 'Play bonus game' : 'Start puzzle game'}"</strong> to play again!
+                         </div>`
+                    }
+                </div>
+            </div>
+        `;
     }
 }
 
