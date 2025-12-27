@@ -55,6 +55,10 @@ class GameState:
         self.words_solved_count: int = 0
         self.final_score: int | None = None
 
+        # Theme confirmation (to prevent STT mistakes)
+        self.pending_theme_guess: str = ""
+        self.awaiting_theme_confirmation: bool = False
+
         # Last feedback
         self.last_message: str = ""
 
@@ -81,6 +85,8 @@ class GameState:
             "last_message": self.last_message,
             "wager_amount": self.wager_amount,
             "current_score": self.current_score,
+            "pending_theme_guess": self.pending_theme_guess,
+            "awaiting_theme_confirmation": self.awaiting_theme_confirmation,
             "theme_display": self.theme_display,
             "theme_length": self.theme_length,
             "theme_word_count": self.theme_word_count,
@@ -324,7 +330,46 @@ class GameManager:
             return {"success": False, "message": f"Error checking answer: {err}"}
 
     async def _submit_theme_answer(self, answer: str) -> dict[str, Any]:
-        """Submit a theme answer."""
+        """Handle theme answer - requires confirmation before submitting."""
+        # Check if this is a confirmation response
+        answer_lower = answer.lower().strip()
+        confirmation_words = ["yes", "correct", "confirm", "that's right", "thats right", "yep", "yeah", "right"]
+
+        if self.state.awaiting_theme_confirmation:
+            # User is responding to confirmation prompt
+            if any(word in answer_lower for word in confirmation_words):
+                # Confirmed - submit the pending guess
+                return await self._do_submit_theme(self.state.pending_theme_guess)
+            else:
+                # Not a confirmation - treat as a new guess
+                self.state.pending_theme_guess = answer
+                message = f"I heard {answer.upper()}. Say yes to confirm, or say your answer again."
+                self.state.last_message = message
+                return {
+                    "success": True,
+                    "correct": False,
+                    "awaiting_confirmation": True,
+                    "message": message,
+                }
+        else:
+            # First guess - store and ask for confirmation
+            self.state.pending_theme_guess = answer
+            self.state.awaiting_theme_confirmation = True
+            message = f"I heard {answer.upper()}. Say yes to confirm, or say your answer again."
+            self.state.last_message = message
+            return {
+                "success": True,
+                "correct": False,
+                "awaiting_confirmation": True,
+                "message": message,
+            }
+
+    async def _do_submit_theme(self, answer: str) -> dict[str, Any]:
+        """Actually submit the theme answer to the API."""
+        # Clear confirmation state
+        self.state.awaiting_theme_confirmation = False
+        self.state.pending_theme_guess = ""
+
         try:
             result = await self._api.check_theme(self.state.puzzle_id, answer)
 
@@ -340,9 +385,11 @@ class GameManager:
                 )
             else:
                 attempts_remaining = result.get("attempts_remaining")
-                message = "Not the theme. Try again!"
+                message = f"Sorry, {answer.upper()} is not the theme."
                 if attempts_remaining is not None and attempts_remaining <= 3:
-                    message += f" ({attempts_remaining} attempts left)"
+                    message += f" You have {attempts_remaining} attempts left."
+                else:
+                    message += " Try again!"
                 self.state.last_message = message
                 return {
                     "success": True,

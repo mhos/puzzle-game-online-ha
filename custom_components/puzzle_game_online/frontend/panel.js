@@ -1014,6 +1014,10 @@ class PuzzleGameOnlinePanel extends HTMLElement {
 
         // Progress dots
         const solvedIndices = (state.solved_word_indices || []).map(Number);
+        // Debug: Log solved indices to help diagnose checkmark issue
+        if (state.solved_word_indices) {
+            console.log('solved_word_indices:', state.solved_word_indices, '-> parsed:', solvedIndices);
+        }
         let progressHtml = '';
         for (let i = 1; i <= 6; i++) {
             const wordIndex = i - 1;

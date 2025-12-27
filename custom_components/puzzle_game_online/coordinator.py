@@ -76,6 +76,8 @@ class PuzzleGameCoordinator(DataUpdateCoordinator):
             "spelling_mode": self.game_manager.spelling_mode,
             "spelling_buffer": self.game_manager.spelling_buffer,
             "current_score": state.current_score,
+            "pending_theme_guess": state.pending_theme_guess,
+            "awaiting_theme_confirmation": state.awaiting_theme_confirmation,
         }
 
     async def async_start_game(self, is_bonus: bool = False) -> dict[str, Any]:

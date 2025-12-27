@@ -100,6 +100,8 @@ class PuzzleGameSensor(CoordinatorEntity, SensorEntity):
             ATTR_SPELLING_MODE: state.get("spelling_mode"),
             ATTR_SPELLING_BUFFER: state.get("spelling_buffer"),
             ATTR_CURRENT_SCORE: state.get("current_score"),
+            "pending_theme_guess": state.get("pending_theme_guess"),
+            "awaiting_theme_confirmation": state.get("awaiting_theme_confirmation"),
         }
 
     @property
