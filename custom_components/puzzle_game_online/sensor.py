@@ -91,6 +91,7 @@ class PuzzleGameSensor(CoordinatorEntity, SensorEntity):
             ATTR_CLUE: state.get("clue"),
             ATTR_SOLVED_WORDS: state.get("solved_words"),
             "solved_word_indices": state.get("solved_word_indices"),
+            "skipped_word_indices": state.get("skipped_word_indices"),
             ATTR_IS_ACTIVE: state.get("is_active"),
             ATTR_LAST_MESSAGE: state.get("last_message"),
             ATTR_THEME_REVEALED: state.get("theme_revealed"),

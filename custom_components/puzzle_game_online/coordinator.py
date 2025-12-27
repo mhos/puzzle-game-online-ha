@@ -62,7 +62,8 @@ class PuzzleGameCoordinator(DataUpdateCoordinator):
             "blanks": self.game_manager.get_current_blanks(),
             "clue": self.game_manager.get_current_clue(),
             "solved_words": solved_words_display,
-            "solved_word_indices": state.solved_words,
+            "solved_word_indices": list(state.solved_words),  # Make a copy to avoid reference issues
+            "skipped_word_indices": list(state.skipped_words),  # For showing X on skipped words
             "is_active": state.is_active,
             "last_message": state.last_message,
             "theme_revealed": state.theme if not state.is_active else None,

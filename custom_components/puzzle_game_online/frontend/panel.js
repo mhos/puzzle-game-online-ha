@@ -405,6 +405,7 @@ class PuzzleGameOnlinePanel extends HTMLElement {
                 }
 
                 .progress-dot.correct { background: #4caf50; }
+                .progress-dot.skipped { background: #f44336; }
                 .progress-dot.pending {
                     background: rgba(255, 255, 255, 0.3);
                     animation: pulse 2s infinite;
@@ -1014,10 +1015,16 @@ class PuzzleGameOnlinePanel extends HTMLElement {
 
         // Progress dots
         const solvedIndices = (state.solved_word_indices || []).map(Number);
-        // Debug: Log solved indices to help diagnose checkmark issue
-        if (state.solved_word_indices) {
-            console.log('solved_word_indices:', state.solved_word_indices, '-> parsed:', solvedIndices);
-        }
+        const skippedIndices = (state.skipped_word_indices || []).map(Number);
+        // Debug: Log indices to help diagnose checkmark/skip issue
+        console.log('Progress state:', {
+            solved_word_indices: state.solved_word_indices,
+            skipped_word_indices: state.skipped_word_indices,
+            solvedParsed: solvedIndices,
+            skippedParsed: skippedIndices,
+            phase: phase,
+            wordNum: wordNum
+        });
         let progressHtml = '';
         for (let i = 1; i <= 6; i++) {
             const wordIndex = i - 1;
@@ -1030,6 +1037,9 @@ class PuzzleGameOnlinePanel extends HTMLElement {
             } else if (solvedIndices.includes(wordIndex)) {
                 dotClass += ' correct';
                 content = '✓';
+            } else if (skippedIndices.includes(wordIndex)) {
+                dotClass += ' skipped';
+                content = '✗';
             } else if (wordIndex === wordNum - 1 && phase === 1) {
                 dotClass += ' pending';
             }
