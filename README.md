@@ -24,6 +24,21 @@ A voice-controlled word puzzle game integration for Home Assistant that connects
 - **Speech-to-Text (STT)**: Any STT integration configured and working in Home Assistant
 - **Assist Satellite**: At least one voice-enabled device set up as an Assist satellite
 
+### Conversation Agent (Required)
+
+> **Important:** The built-in Home Assistant conversation agent does **NOT** work with this game. You must use an LLM-based conversation agent.
+
+The game uses `assist_satellite.start_conversation` to keep the satellite listening between answers, which requires an LLM that can accept system prompts. Configure one of the following:
+
+- **[OpenAI Conversation](https://www.home-assistant.io/integrations/openai_conversation/)** - GPT models
+- **[Anthropic](https://www.home-assistant.io/integrations/anthropic/)** - Claude models
+- **[Google Generative AI](https://www.home-assistant.io/integrations/google_generative_ai_conversation/)** - Gemini models
+- **[xAI](https://www.home-assistant.io/integrations/xai/)** - Grok models
+- **[Ollama](https://www.home-assistant.io/integrations/ollama/)** - Local/free LLMs
+- **[Open Router](https://www.home-assistant.io/integrations/open_router/)** - Access multiple LLM providers
+
+After installing your chosen integration, set it as the conversation agent for your Assist satellite in **Settings > Voice Assistants**.
+
 ### For Visual Display on Satellite Devices
 - **[View Assist](https://github.com/dinki/View-Assist)**: Required if you want to see the game dashboard on satellite display devices (Echo Show, Lenovo ThinkSmart, tablets, etc.)
 
